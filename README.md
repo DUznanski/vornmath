@@ -120,7 +120,7 @@ Higher dimensional complex numbers, of the form `a + bi + cj + dk`.  Fields `a`,
 `b`, `c`, and `d` access the various components.  Somehow, many things that
 work with complex numbers also work with quaternions! (I know, I was surprised
 too)  However, quaternion multiplication is *non-commutative*: if `x` and `y`
-are quaternions, then `x * y` and `y * x` give different results.
+are quaternions, then `x * y` and `y * x` usually give different results.
 
 ### `boolean`
 

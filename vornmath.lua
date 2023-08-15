@@ -19,6 +19,7 @@ local SCALAR_PREFIXES = {
   quat = 'q'
 }
 
+vornmath.utils = {}
 vornmath.bakeries = {}
 vornmath.metatables = {}
 vornmath.metameta = {
@@ -26,11 +27,11 @@ vornmath.metameta = {
     -- process the thing to get the name.
     -- the name should just be the first word of the name.
     local name = string.match(thing, '[^_]+')
-    return function(...) return vornmath.bakeByCall(name, ...)(...) end
+    return function(...) return vornmath.utils.bakeByCall(name, ...)(...) end
   end
 }
 
-function vornmath.hasBakery(function_name, types)
+function vornmath.utils.hasBakery(function_name, types)
   local available_bakeries = vornmath.bakeries[function_name]
   if not available_bakeries then return nil end
   for _, bakery in ipairs(available_bakeries) do
@@ -39,27 +40,27 @@ function vornmath.hasBakery(function_name, types)
   return false
 end
 
-function vornmath.bake(function_name, types)
-  local bakery = vornmath.hasBakery(function_name, types)
+function vornmath.utils.bake(function_name, types)
+  local bakery = vornmath.utils.hasBakery(function_name, types)
   if bakery == nil then error("unknown vornmath function `" .. function_name .. "`.") end
   if bakery == false then error('vornmath function `' .. function_name .. '` does not accept types `' .. table.concat(types, ', ') .. '`.') end
 ---@diagnostic disable-next-line: need-check-nil
   local result = bakery.create(types)
   vornmath[function_name .. '_' .. table.concat(types, '_')] = result
-  vornmath.buildProxies(function_name, types)
+  vornmath.utils.buildProxies(function_name, types)
   return result
 end
 
-function vornmath.bakeByCall(name, ...)
+function vornmath.utils.bakeByCall(name, ...)
   local types = {}
   for i = 1, select('#', ...) do
     types[i] = vornmath.type(select(i, ...))
   end
-  local f = vornmath.bake(name, types)
+  local f = vornmath.utils.bake(name, types)
   return f
 end
 
-function vornmath.buildProxies(function_name, types)
+function vornmath.utils.buildProxies(function_name, types)
   local built_name = '_' .. function_name
   if not rawget(vornmath, function_name) then
     local existing_name = built_name
@@ -81,7 +82,7 @@ function vornmath.buildProxies(function_name, types)
   vornmath.metatables[types[#types]][built_name] = vornmath[function_name .. '_' .. table.concat(types, '_')]
 end
 
-local vm_meta = {
+vornmath.utils.vm_meta = {
   __index = function(vornmath, index)
     -- is this supposed to be a base proxy or a fully qualified function?
     local is_fully_qualified = string.find(index, '_')
@@ -95,7 +96,7 @@ local vm_meta = {
       -- safety: make sure the name I'm about to make in the bakery is the same as the one I just passed in.
       local rebuilt_index = name .. '_' .. table.concat(types, '_')
       if rebuilt_index ~= index then error("invalid vornmath function signature `" .. index .. "` (should be `" .. rebuilt_index .."`).") end
-      vornmath.bake(name, types)
+      vornmath.utils.bake(name, types)
     else
       -- instead, bake *only* the proxy.
       if not vornmath.bakeries[index] then error("unknown vornmath function `" .. index .. "`.") end
@@ -106,7 +107,7 @@ local vm_meta = {
   end
 }
 
-setmetatable(vornmath, vm_meta)
+setmetatable(vornmath, vornmath.utils.vm_meta)
 
 function vornmath.type(obj)
   local mt = getmetatable(obj)
@@ -136,42 +137,37 @@ function vornmath.constructCheck(typename)
   end
 end
 
-local TYPE_HIERARCHY = {
-  number = 1,
-  complex = 2,
-  quat = 3
-}
+do
+  local TYPE_HIERARCHY = {
+    number = 1,
+    complex = 2,
+    quat = 3
+  }
 
-function vornmath.consensusStorage(...)
-  local length = select('#', ...)
-  local consensus_size = 0
-  local consensus_type
-  for i = 1,length do
-    local type = select(i, ...)
-    if TYPE_HIERARCHY[type] > consensus_size then
-      consensus_type = type
-      consensus_size = TYPE_HIERARCHY[type]
+  function vornmath.utils.consensusStorage(...)
+    -- this will need to change when I no longer have a single hierarchy of types
+    local length = select('#', ...)
+    local consensus_size = 0
+    local consensus_type
+    for i = 1,length do
+      local type = select(i, ...)
+      if TYPE_HIERARCHY[type] > consensus_size then
+        consensus_type = type
+        consensus_size = TYPE_HIERARCHY[type]
+      end
     end
+    return consensus_type
   end
-  return consensus_type
 end
 
-function vornmath.createBakery(function_name, signature_check, create)
-  if not vornmath.bakeries[function_name] then
-    vornmath.bakeries[function_name] = {}
-  end
-  local bakery_zone = vornmath.bakeries[function_name]
-  table.insert(bakery_zone, {signature_check = signature_check, create = create})
-end
-
-local function justNilTypeCheck(types)
+function vornmath.utils.justNilTypeCheck(types)
   if not types[1] then
     types[1] = 'nil' -- I have to edit type lists that need to include a nil.
   end
   return types[1] == 'nil'
 end
 
-local function clearingExactTypeCheck(correct_types)
+function vornmath.utils.clearingExactTypeCheck(correct_types)
   return function(types)
     for i,t in ipairs(correct_types) do
       if types[i] ~= t then return false end
@@ -181,7 +177,7 @@ local function clearingExactTypeCheck(correct_types)
   end
 end
 
-local function nilFollowingExactTypeCheck(correct_types)
+function vornmath.utils.nilFollowingExactTypeCheck(correct_types)
   return function(types)
     for i,t in ipairs(correct_types) do
       if types[i] ~= t then return false end
@@ -193,9 +189,9 @@ local function nilFollowingExactTypeCheck(correct_types)
   end
 end
 
-local function quatOperatorFromComplex(complex_function)
+function vornmath.utils.quatOperatorFromComplex(complex_function)
   return {
-    signature_check = clearingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_complex_vec3
@@ -214,25 +210,25 @@ end
 
 vornmath.bakeries.fill = {
   { -- fill(boolean)
-    signature_check = nilFollowingExactTypeCheck({'boolean'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'boolean'}),
     create = function(types)
       return function(target) return false end
     end
   },
   { -- fill(boolean, boolean)
-    signature_check = clearingExactTypeCheck({'boolean', 'boolean'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'boolean', 'boolean'}),
     create = function(types)
       return function(target, x) return x end
     end
   },
   { -- fill(number)
-    signature_check = nilFollowingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
     create = function(types)
       return function(target) return 0 end
     end
   },
   { -- fill(number, number)
-    signature_check = clearingExactTypeCheck({'number','number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number','number'}),
     create = function(types)
       return function(target, x) return x end
     end
@@ -246,7 +242,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(complex)
-    signature_check = nilFollowingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'complex'}),
     create = function(types)
       return function(z)
         z.a = 0
@@ -256,7 +252,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(complex, number[, nil])
-    signature_check = nilFollowingExactTypeCheck({'complex','number'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'complex','number'}),
     create = function(types)
       return function(z, a)
         z.a = a
@@ -266,7 +262,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(complex, number, number)
-    signature_check = clearingExactTypeCheck({'complex','number','number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex','number','number'}),
     create = function(types)
       return function(z, a, b)
         z.a = a
@@ -276,7 +272,7 @@ vornmath.bakeries.fill = {
     end  
   },
   { -- fill(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex','complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex','complex'}),
     create = function(types)
       return function(target, z)
         target.a = z.a
@@ -286,7 +282,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat)
-    signature_check = nilFollowingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'quat'}),
     create = function(types)
       return function(z)
         z.a = 0
@@ -298,7 +294,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, number)
-    signature_check = nilFollowingExactTypeCheck({'quat','number'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'quat','number'}),
     create = function(types)
       return function(z,x)
         z.a = x
@@ -310,7 +306,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, number, number, number, number)
-    signature_check = clearingExactTypeCheck({'quat','number','number','number','number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','number','number','number','number'}),
     create = function(types)
       return function(z,a,b,c,d)
         z.a = a
@@ -321,7 +317,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, complex, nil)
-    signature_check = nilFollowingExactTypeCheck({'quat','complex'}),
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'quat','complex'}),
     create = function(types)
       return function(z,x)
         z.a = x.a
@@ -333,7 +329,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, complex, complex)
-    signature_check = clearingExactTypeCheck({'quat','complex','complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','complex','complex'}),
     create = function(types)
       return function(z,x,y)
         z.a = x.a
@@ -345,7 +341,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, quat)
-    signature_check = clearingExactTypeCheck({'quat','quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','quat'}),
     create = function(types)
       return function(z,x)
         z.a = x.a
@@ -357,7 +353,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, axis, angle)
-    signature_check = clearingExactTypeCheck({'quat','vec3','number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','vec3','number'}),
     create = function(types)
       local sin, cos = math.sin, math.cos
       return function(z, axis, angle)
@@ -370,7 +366,7 @@ vornmath.bakeries.fill = {
     end
   },
   { -- fill(quat, complex, axis)
-    signature_check = clearingExactTypeCheck({'quat','complex','vec3'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','complex','vec3'}),
     create = function(types)
       return function(z, cpx, axis)
         z.a, z.b, z.c, z.d = cpx.a, cpx.b * axis[1], cpx.b * axis[2], cpx.c * axis[3]
@@ -678,14 +674,14 @@ vornmath.bakeries.fill = {
   }
 }
 
-local function generic_constructor(typename)
+function vornmath.utils.generic_constructor(typename)
   return {
     signature_check = function(types)
       local extended_types = {typename}
       for _,t in ipairs(types) do
         table.insert(extended_types, t)
       end
-      if vornmath.hasBakery('fill', extended_types) then
+      if vornmath.utils.hasBakery('fill', extended_types) then
         -- copy any edits to extended_types back
         for i = 2,#extended_types + 1 do -- grab up the nil too
           types[i - 1] = extended_types[i]
@@ -709,27 +705,27 @@ end
 
 vornmath.bakeries.boolean = {
   { -- boolean()
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       return function() return false end
     end
   },
-  generic_constructor('boolean')
+  vornmath.utils.generic_constructor('boolean')
 }
 
 vornmath.bakeries.number = {
   { -- number()
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       return function() return 0 end
     end
   },
-  generic_constructor('number')
+  vornmath.utils.generic_constructor('number')
 }
 
 vornmath.bakeries.complex = {
   { -- complex()
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       local complex_meta = vornmath.metatables.complex
       return function()
@@ -737,12 +733,12 @@ vornmath.bakeries.complex = {
       end
     end
   },
-  generic_constructor('complex')
+  vornmath.utils.generic_constructor('complex')
 }
 
 vornmath.bakeries.quat = {
   { -- quat()
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       local quat_meta = vornmath.metatables.quat
       return function()
@@ -750,13 +746,13 @@ vornmath.bakeries.quat = {
       end
     end
   },
-  generic_constructor('quat')
+  vornmath.utils.generic_constructor('quat')
 }
 
 
-local function vector_nil_constructor(storage,d)
+function vornmath.utils.vector_nil_constructor(storage,d)
   return { -- vecd()
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       local mt = vornmath.metatables[SCALAR_PREFIXES[storage] .. 'vec' .. d]
       local constructor = vornmath[storage .. '_nil']
@@ -774,15 +770,15 @@ end
 for _,storage in ipairs({'boolean', 'number', 'complex'}) do
   for d = 2,4 do
     vornmath.bakeries[SCALAR_PREFIXES[storage] .. 'vec' .. d] = {
-      vector_nil_constructor(storage, d),
-      generic_constructor(SCALAR_PREFIXES[storage] .. 'vec' .. d)
+      vornmath.utils.vector_nil_constructor(storage, d),
+      vornmath.utils.generic_constructor(SCALAR_PREFIXES[storage] .. 'vec' .. d)
     }
   end
 end
 
-local function matrix_nil_constructor(storage,w,h)
+function vornmath.utils.matrix_nil_constructor(storage,w,h)
   return {
-    signature_check = justNilTypeCheck,
+    signature_check = vornmath.utils.justNilTypeCheck,
     create = function(types)
       local prefix = SCALAR_PREFIXES[storage]
       local mt = vornmath.metatables[prefix .. 'mat' .. w .. 'x' .. h]
@@ -808,8 +804,8 @@ for _,storage in ipairs({'number', 'complex'}) do
     for h = 2,4 do
       local typename = SCALAR_PREFIXES[storage] .. 'mat' .. w .. 'x' .. h
       vornmath.bakeries[typename] = {
-        matrix_nil_constructor(storage, w, h),
-        generic_constructor(typename)
+        vornmath.utils.matrix_nil_constructor(storage, w, h),
+        vornmath.utils.generic_constructor(typename)
       }
     end
   end
@@ -817,13 +813,13 @@ end
 
 vornmath.bakeries.add = {
   { -- add(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x + y end
     end
   },
   { -- add(number, complex)
-    signature_check = clearingExactTypeCheck({'number', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -834,7 +830,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -845,7 +841,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -856,7 +852,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(quat, number)
-    signature_check = clearingExactTypeCheck({'quat', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -867,7 +863,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(quat, complex)
-    signature_check = clearingExactTypeCheck({'quat', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -878,7 +874,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(quat, quat)
-    signature_check = clearingExactTypeCheck({'quat', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -889,7 +885,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(complex, quat)
-    signature_check = clearingExactTypeCheck({'complex', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -900,7 +896,7 @@ vornmath.bakeries.add = {
     end
   },
   { -- add(number, quat)
-    signature_check = clearingExactTypeCheck({'number', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -915,13 +911,13 @@ vornmath.bakeries.add = {
 
 vornmath.bakeries.unm = {
   { -- unm(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return function(x) return -x end
     end
   },
   { -- unm(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -932,7 +928,7 @@ vornmath.bakeries.unm = {
     end
   },
   { -- unm(quat)
-    signature_check = clearingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -946,13 +942,13 @@ vornmath.bakeries.unm = {
 
 vornmath.bakeries.sub = {
   { -- sub(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x - y end
     end
   },
   { -- sub(number, complex)
-    signature_check = clearingExactTypeCheck({'number', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -963,7 +959,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -974,7 +970,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -985,7 +981,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(quat, number)
-    signature_check = clearingExactTypeCheck({'quat', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -996,7 +992,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(quat, complex)
-    signature_check = clearingExactTypeCheck({'quat', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1007,7 +1003,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(quat, quat)
-    signature_check = clearingExactTypeCheck({'quat', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1018,7 +1014,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(complex, quat)
-    signature_check = clearingExactTypeCheck({'complex', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1029,7 +1025,7 @@ vornmath.bakeries.sub = {
     end
   },
   { -- sub(number, quat)
-    signature_check = clearingExactTypeCheck({'number', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1043,13 +1039,13 @@ vornmath.bakeries.sub = {
 
 vornmath.bakeries.mul = {
   { -- mul(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x * y end
     end
   },
   { -- mul(number, complex)
-    signature_check = clearingExactTypeCheck({'number', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1060,7 +1056,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1071,7 +1067,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1082,7 +1078,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(number, quat)
-    signature_check = clearingExactTypeCheck({'number', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1093,7 +1089,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(complex, quat)
-    signature_check = clearingExactTypeCheck({'complex', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1107,7 +1103,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(quat, quat)
-    signature_check = clearingExactTypeCheck({'quat', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1121,7 +1117,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(quat, complex)
-    signature_check = clearingExactTypeCheck({'quat', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1135,7 +1131,7 @@ vornmath.bakeries.mul = {
     end
   },
   { -- mul(quat, number)
-    signature_check = clearingExactTypeCheck({'quat', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1152,13 +1148,13 @@ vornmath.bakeries.mul = {
 
 vornmath.bakeries.div = {
   { -- div(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x / y end
     end
   },
   { -- div(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1169,7 +1165,7 @@ vornmath.bakeries.div = {
     end
   },
   { -- div(quat, number)
-    signature_check = clearingExactTypeCheck({'quat', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
@@ -1186,17 +1182,17 @@ vornmath.bakeries.div = {
       if first.vm_shape ~= 'scalar' then return false end
       if second.vm_shape ~= 'scalar' then return false end
       if second.vm_shape == 'number' then return false end
-      local combined_type = vornmath.consensusStorage(types[1], types[2])
-      if vornmath.hasBakery('sqabs', {types[2]}) and
-         vornmath.hasBakery('mul', {types[1], types[2]}) and
-         vornmath.hasBakery('conj', {types[2]}) and
-         vornmath.hasBakery('div', {combined_type, 'number'}) then
+      local combined_type = vornmath.utils.consensusStorage(types[1], types[2])
+      if vornmath.utils.hasBakery('sqabs', {types[2]}) and
+         vornmath.utils.hasBakery('mul', {types[1], types[2]}) and
+         vornmath.utils.hasBakery('conj', {types[2]}) and
+         vornmath.utils.hasBakery('div', {combined_type, 'number'}) then
         types[3] = nil
         return true
       end
     end,
     create = function(types)
-      local combined_type = vornmath.consensusStorage(types[1], types[2])
+      local combined_type = vornmath.utils.consensusStorage(types[1], types[2])
       local sqabs = vornmath['sqabs_' .. types[2]]
       local mul = vornmath['mul_' .. types[1] .. '_' .. types[2]]
       local conj = vornmath['conj_' .. types[2]]
@@ -1215,7 +1211,7 @@ vornmath.bakeries.div = {
 
 vornmath.bakeries.mod = {
   { -- mod(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x % y end
     end
@@ -1224,13 +1220,13 @@ vornmath.bakeries.mod = {
 
 vornmath.bakeries.eq = {
   { -- eq(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x == y end
     end
   },
   { -- eq(number, complex)
-    signature_check = clearingExactTypeCheck({'number', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
     create = function(types)
       return function(x, y)
         return x == y.a and 0 == y.b
@@ -1238,7 +1234,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       return function(x, y)
         return x.a == y and x.b == 0
@@ -1246,7 +1242,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
       return function(x, y)
         return x.a == y.a and x.b == y.b
@@ -1254,7 +1250,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(number, quat)
-    signature_check = clearingExactTypeCheck({'number', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'quat'}),
     create = function(types)
       return function(x, y)
         return x == y.a and y.b == 0 and y.c == 0 and y.d == 0
@@ -1262,7 +1258,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(complex, quat)
-    signature_check = clearingExactTypeCheck({'complex', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'quat'}),
     create = function(types)
       return function(x, y)
         return x.a == y.a and x.b == y.b and y.c == 0 and y.d == 0
@@ -1270,7 +1266,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(quat, quat)
-    signature_check = clearingExactTypeCheck({'quat', 'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
       return function(x, y)
         return x == y.a and y.b == 0 and x.c == y.c and x.d == y.d
@@ -1278,7 +1274,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(quat, number)
-    signature_check = clearingExactTypeCheck({'quat', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number'}),
     create = function(types)
       return function(x, y)
         return x.a == y and x.b == 0 and x.c == 0 and x.d == 0
@@ -1286,7 +1282,7 @@ vornmath.bakeries.eq = {
     end
   },
   { -- eq(quat, complex)
-    signature_check = clearingExactTypeCheck({'quat', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex'}),
     create = function(types)
       return function(x, y)
         return x.a == y.a and x.b == y.b and x.c == 0 and x.d == 0
@@ -1325,7 +1321,7 @@ vornmath.bakeries.eq = {
 
 vornmath.bakeries.lt = {
   { -- lt(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x, y) return x < y end
     end
@@ -1334,13 +1330,13 @@ vornmath.bakeries.lt = {
 
 vornmath.bakeries.atan = {
   { -- atan(number)
-    signature_check = clearingExactTypeCheck({'number', 'nil'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'nil'}),
     create = function(types)
       return math.atan
     end
   },
   { -- atan(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
 ---@diagnostic disable-next-line: deprecated
       return math.atan2 or math.atan
@@ -1350,13 +1346,13 @@ vornmath.bakeries.atan = {
 
 vornmath.bakeries.log = {
   { -- log(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return math.log
     end
   },
   { -- log(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local arg = vornmath.arg_complex
@@ -1369,20 +1365,20 @@ vornmath.bakeries.log = {
       end
     end
   },
-  quatOperatorFromComplex(vornmath.log_complex)
+--  vornmath.utils.quatOperatorFromComplex(vornmath.log_complex)
 }
 
 
 
 vornmath.bakeries.arg = {
   { -- arg(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return function(x) return x >= 0 and 0 or math.pi end
     end
   },
   { -- arg(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local atan = vornmath.atan_number_number
       return function(z)
@@ -1394,7 +1390,7 @@ vornmath.bakeries.arg = {
 
 vornmath.bakeries.axisDecompose = {
   { -- axisDecompose(quat)
-    signature_check = clearingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local cc_complex = vornmath.constructCheck('complex')
       local cc_vec3 = vornmath.constructCheck('vec3')
@@ -1419,13 +1415,13 @@ vornmath.bakeries.axisDecompose = {
 
 vornmath.bakeries.exp = {
   { -- exp(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return math.exp
     end
   },
   { -- exp(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1438,13 +1434,13 @@ vornmath.bakeries.exp = {
       end
     end
   },
-  quatOperatorFromComplex(vornmath.exp_complex)
+--  vornmath.utils.quatOperatorFromComplex(vornmath.exp_complex)
 }
 
 
 vornmath.bakeries.pow = {
   { -- pow(number, number)
-    signature_check = clearingExactTypeCheck({'number', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
 -- pow disappears in later versions (5.2+) because ^ replaces it
 ---@diagnostic disable-next-line: deprecated
@@ -1452,7 +1448,7 @@ vornmath.bakeries.pow = {
     end
   },
   { -- pow(number, complex)
-    signature_check = clearingExactTypeCheck({'number', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1478,7 +1474,7 @@ vornmath.bakeries.pow = {
     end
   },
   { -- pow(complex, number)
-    signature_check = clearingExactTypeCheck({'complex', 'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1498,7 +1494,7 @@ vornmath.bakeries.pow = {
     end
   },
   { -- pow(complex, complex)
-    signature_check = clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1522,19 +1518,19 @@ vornmath.bakeries.pow = {
 
 vornmath.bakeries.tostring = {
   { -- tostring(boolean)
-    signature_check = clearingExactTypeCheck({'boolean'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'boolean'}),
     create = function(types)
       return tostring
     end
   },
   { -- tostring(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return tostring
     end
   },
   { -- tostring(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       return function(z)
         return tostring(z.a).. ' + ' .. tostring(z.b) .. 'i'
@@ -1571,9 +1567,9 @@ vornmath.bakeries.mix = {
       return true
     end,
     create = function(types)
-      local left_type = vornmath.consensusStorage(types[1], types[3])
-      local right_type = vornmath.consensusStorage(types[2], types[3])
-      local final_type = vornmath.consensusStorage(left_type, right_type)
+      local left_type = vornmath.utils.consensusStorage(types[1], types[3])
+      local right_type = vornmath.utils.consensusStorage(types[2], types[3])
+      local final_type = vornmath.utils.consensusStorage(left_type, right_type)
       local cc = vornmath.constructCheck(final_type)
       local sub = vornmath['sub_number_' .. types[3]]
       local add = vornmath['add_' .. left_type .. '_' .. right_type]
@@ -1592,7 +1588,7 @@ vornmath.bakeries.mix = {
 
 vornmath.bakeries.sqabs = {
   { -- sqabs(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return function(x, result)
         return x * x
@@ -1600,7 +1596,7 @@ vornmath.bakeries.sqabs = {
     end
   },
   { -- sqabs(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local sqrt = math.sqrt
       return function(x, result)
@@ -1609,7 +1605,7 @@ vornmath.bakeries.sqabs = {
     end
   },
   { -- sqabs(quat)
-    signature_check = clearingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local sqrt = math.sqrt
       return function(x, result)
@@ -1621,13 +1617,13 @@ vornmath.bakeries.sqabs = {
 
 vornmath.bakeries.abs = {
   { -- abs(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return math.abs
     end
   },
   { -- abs(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local sqrt = math.sqrt
       return function(x, result)
@@ -1636,7 +1632,7 @@ vornmath.bakeries.abs = {
     end
   },
   { -- abs(quat)
-  signature_check = clearingExactTypeCheck({'quat'}),
+  signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
   create = function(types)
     local sqrt = math.sqrt
     return function(x, result)
@@ -1649,13 +1645,13 @@ vornmath.bakeries.abs = {
 
 vornmath.bakeries.conj = {
   { -- conj(number)
-    signature_check = clearingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
     create = function(types)
       return function(x) return x end
     end
   },
   { -- conj(complex)
-    signature_check = clearingExactTypeCheck({'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
@@ -1666,7 +1662,7 @@ vornmath.bakeries.conj = {
     end
   },
   { -- conj(quat)
-    signature_check = clearingExactTypeCheck({'quat'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_quat_number_number
