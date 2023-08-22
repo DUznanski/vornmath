@@ -1,7 +1,6 @@
 local vornmath = {}
 
 -- loadstring gets folded into load in later versions (5.2+)
-
 ---@diagnostic disable-next-line: deprecated
 local load = loadstring or load
 
@@ -44,9 +43,11 @@ function vornmath.utils.bake(function_name, types)
   local bakery = vornmath.utils.hasBakery(function_name, types)
   if bakery == nil then error("unknown vornmath function `" .. function_name .. "`.") end
   if bakery == false then error('vornmath function `' .. function_name .. '` does not accept types `' .. table.concat(types, ', ') .. '`.') end
----@diagnostic disable-next-line: need-check-nil
+  local name = function_name .. '_' .. table.concat(types, '_')
+  if rawget(vornmath, name) then return vornmath[name] end
+  ---@diagnostic disable-next-line: need-check-nil
   local result = bakery.create(types)
-  vornmath[function_name .. '_' .. table.concat(types, '_')] = result
+  vornmath[name] = result
   vornmath.utils.buildProxies(function_name, types)
   return result
 end
@@ -953,37 +954,52 @@ vornmath.bakeries.add = {
 }
 
 vornmath.bakeries.unm = {
-  { -- unm(number)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
+  { -- unm(number, number)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(x) return -x end
     end,
     return_type = function(types) return 'number' end
   },
-  { -- unm(complex)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
+  { -- unm(complex, complex)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
-      local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
-      return function(x, y, result)
-        result = cc(result)
+      return function(x, result)
         return fill(result, -x.a, -x.b)
       end
     end,
     return_type = function(types) return 'complex' end
   },
-  { -- unm(quat)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
+  { -- unm(quat, quat)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
-      local cc = vornmath.constructCheck('quat')
       local fill = vornmath.fill_quat_number_number_number_number
-      return function(x, y, result)
-        result = cc(result)
+      return function(x, result)
         return fill(result, -x.a, -x.b, -x.c, -x.d)
       end
     end,
     return_type = function(types) return 'quat' end
-  }
+  },
+  { -- unm(anything)
+    signature_check = function(types)
+      if #types ~= 1 then return false end
+      local full_types = {types[1], types[1]}
+      if vornmath.utils.hasBakery('unm',full_types) then
+        types[2] = 'nil'
+        return true
+      end
+    end,
+    create = function(types)
+      local full_types = {types[1], types[1]}
+      local f = vornmath['unm_' .. table.concat(full_types, '_')]
+      local create = vornmath[types[1] .. '_nil']
+      return function(x)
+        return f(x,create())
+      end
+    end,
+    return_type = function(types) return types[1] end
+  },
 }
 
 vornmath.bakeries.sub = {
