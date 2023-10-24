@@ -64,6 +64,64 @@ function testComplexPower()
     lu.assertAlmostEquals(vm.complex(0,1)^vm.complex(0,1), vm.complex(math.exp(-math.pi/2)))
 end
 
+function testQuatAddition()
+    local a = vm.quat(1,2,3,4)
+    local b = vm.complex(5,6)
+    local c = 7
+    lu.assertEquals(a + a, vm.quat(2,4,6,8))
+    lu.assertEquals(a + b, vm.quat(6,8,3,4))
+    lu.assertEquals(a + c, vm.quat(8,2,3,4))
+    lu.assertEquals(b + a, vm.quat(6,8,3,4))
+    lu.assertEquals(c + a, vm.quat(8,2,3,4))
+end
+
+function testQuatSubtraction()
+    local a = vm.quat(1,2,3,4)
+    local b = vm.complex(5,6)
+    local c = 7
+    lu.assertEquals(a - a, vm.quat(0,0,0,0))
+    lu.assertEquals(a - b, vm.quat(-4,-4,3,4))
+    lu.assertEquals(a - c, vm.quat(-6,2,3,4))
+    lu.assertEquals(b - a, vm.quat(4,4,-3,-4))
+    lu.assertEquals(c - a, vm.quat(6,-2,-3,-4))
+end
+
+function testQuatMultiplication()
+    local neg1 = vm.quat(-1,0,0,0)
+    local i = vm.quat(0,1,0,0)
+    local j = vm.quat(0,0,1,0)
+    local k = vm.quat(0,0,0,1)
+    lu.assertEquals(i*i, neg1)
+    lu.assertEquals(j*j, neg1)
+    lu.assertEquals(k*k, neg1)
+    lu.assertEquals(i*j*k, neg1)
+    lu.assertEquals(i*j, k)
+    lu.assertEquals(j*i, -k)
+    lu.assertEquals(k*i, j)
+    lu.assertEquals(i*k, -j)
+    lu.assertEquals(j*k, i)
+    lu.assertEquals(k*j, -i)
+    local a = vm.quat(1,2,3,4)
+    local b = vm.complex(5,6)
+    local c = 7
+    lu.assertEquals(a*a, vm.quat(-28,4,6,8))
+    lu.assertEquals(a*b, vm.quat(-7,16,39,2))
+    lu.assertEquals(b*a, vm.quat(-7,16,-9,38))
+    lu.assertEquals(a*c, vm.quat(7,14,21,28))
+    lu.assertEquals(c*a, vm.quat(7,14,21,28))
+end
+
+function testQuatDivision()
+    -- I can't think of any other clever ones.
+    lu.assertEquals(vm.quat(2,2,0,0) / vm.quat(1,1,1,1), vm.quat(1,0,0,-1))
+end
+
+function testQuatNegation()
+    local a = vm.quat(1,-2,3,-4)
+    lu.assertEquals(-a, vm.quat(-1,2,-3,4))
+end
+
+
 function testVectorNilConstruction()
     local two = vm.vec2()
     local three = vm.vec3()

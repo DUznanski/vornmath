@@ -330,6 +330,7 @@ vornmath.bakeries.fill = {
         z.b = b
         z.c = c
         z.d = d
+        return z
       end
     end,
     return_type = function(types) return 'quat' end
@@ -1338,7 +1339,15 @@ vornmath.bakeries.axisDecompose = {
         axis = fill_vec3(axis, z.b, z.c, z.d)
         -- do this instead of normalizing: I need both length and normal
         local l = length(axis)
-        axis = div(axis, l, axis)
+        if l == 0 then
+          axis = fill_vec3(axis, 1, 0, 0) -- make something up.
+          -- some operators - log is the big one - can create complex results
+          -- from "real" inputs.  I want to make sure that the quat version
+          -- succeeds too, so I'm going to pretend that there's a "correct"
+          -- direction.
+        else
+          axis = div(axis, l, axis)
+        end
         cpx = fill_complex(cpx, z.a, l)
         return cpx, axis
       end
@@ -1366,7 +1375,8 @@ vornmath.bakeries.exp = {
       local exp = math.exp
       return function(z, result)
         result = cc(result)
-        return fill(result, exp(z.a) * sin(z.b), exp(z.a) * cos(z.b))
+        local magnitude = exp(z.a)
+        return fill(result, magnitude * cos(z.b), magnitude * sin(z.b))
       end
     end,
     return_type = function(types) return 'complex' end
@@ -1374,7 +1384,7 @@ vornmath.bakeries.exp = {
 --  vornmath.utils.quatOperatorFromComplex(vornmath.exp_complex)
 }
 
--- TODO: outvars
+-- TODO: outvars, everything else
 vornmath.bakeries.pow = {
   { -- pow(number, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
@@ -1477,6 +1487,15 @@ vornmath.bakeries.tostring = {
     create = function(types)
       return function(z)
         return tostring(z.a).. ' + ' .. tostring(z.b) .. 'i'
+      end
+    end,
+    return_type = function(types) return 'string' end
+  },
+  { -- tostring(quat)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
+    create = function(types)
+      return function(z)
+        return tostring(z.a).. ' + ' .. tostring(z.b) .. 'i + ' .. tostring(z.c) .. 'j + ' .. tostring(z.d) .. 'k'
       end
     end,
     return_type = function(types) return 'string' end
@@ -1625,7 +1644,7 @@ vornmath.bakeries.conj = {
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
     create = function(types)
       local cc = vornmath.constructCheck('complex')
-      local fill = vornmath.fill_quat_number_number
+      local fill = vornmath.fill_quat_number_number_number_number
       return function(x, result)
         result = cc(result)
         return fill(result, x.a, -x.b, -x.c, -x.d)
