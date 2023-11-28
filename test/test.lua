@@ -121,6 +121,30 @@ function testQuatNegation()
     lu.assertEquals(-a, vm.quat(-1,2,-3,4))
 end
 
+function testQuatPower()
+    local a = vm.quat(0,1,0,0)
+    local b = vm.quat(0,0,1,0)
+    lu.assertAlmostEquals(a^b,vm.quat(0,0,0,1))
+end
+
+function testAtan()
+    lu.assertAlmostEquals(vm.atan(1), math.pi / 4)
+    lu.assertAlmostEquals(vm.atan(2,2), math.pi / 4)
+end
+
+function testLog()
+    local i = vm.complex(0,1)
+    lu.assertEquals(vm.log(2), math.log(2))
+    lu.assertEquals(vm.log(2,2), 1)
+    lu.assertAlmostEquals(vm.log(i), vm.complex(0,math.pi / 2))
+    lu.assertAlmostEquals(vm.log(-1, i), vm.complex(2))
+end
+
+function testExp()
+    lu.assertEquals(vm.exp(2), math.exp(2))
+    lu.assertAlmostEquals(vm.exp(vm.complex(0,math.pi)), vm.complex(-1,0))
+    lu.assertAlmostEquals(vm.exp(vm.quat(0,0,math.pi/2,0)), vm.quat(0,0,1,0))
+end
 
 function testVectorNilConstruction()
     local two = vm.vec2()
