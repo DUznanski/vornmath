@@ -177,6 +177,7 @@ end
 function vornmath.utils.clearingExactTypeCheck(correct_types)
   return function(types)
     for i,t in ipairs(correct_types) do
+      if not types[i] then types[i] = 'nil' end
       if types[i] ~= t then return false end
     end
     types[#correct_types + 1] = nil
@@ -891,11 +892,12 @@ function vornmath.utils.scalarReturnOnlys(function_name, arity)
       if #types < arity then return false end
       if #types > arity then
         for i, typename in ipairs(types) do
-          if i > arity and typename ~= nil then return false end
+          if i > arity and typename ~= 'nil' then return false end
         end
       end
-      for _, typename in ipairs(types) do
+      for i, typename in ipairs(types) do
         local meta = vornmath.metatables[typename]
+        if i > arity then break end
         if meta.vm_shape ~= 'scalar' then return false end
       end
       local big_type = vornmath.utils.consensusStorage(types)
@@ -1470,58 +1472,9 @@ vornmath.bakeries.pow = {
     end,
     return_type = function(types) return 'number' end
   },
-  { -- pow(number, complex)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'complex'}),
-    create = function(types)
-      local cc = vornmath.constructCheck('complex')
-      local fill = vornmath.fill_complex_number_number
-      local log = math.log
-      local exp = math.exp
-      local sin = math.sin
-      local cos = math.cos
-      local pi = math.pi
-      return function(x, y, result)
-        result = cc(result)
-        local bonus_argument = 0
-        if y.a == 0 and y.b == 0 then return fill(result, 1, 0) end
-        if x == 0 then return fill(result, 0, 0) end
-        if x < 0 then
-          x = -x
-          bonus_argument = pi
-        end
-        local w = log(x)
-        local argument = y.b * w + bonus_argument
-        local size = exp(y.a * w)
-        return fill(result, size * cos(argument), size * sin(argument))
-      end
-    end,
-    return_type = function(types) return 'complex' end
-  },
-  { -- pow(complex, number)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number'}),
-    create = function(types)
-      local cc = vornmath.constructCheck('complex')
-      local fill = vornmath.fill_complex_number_number
-      local log = vornmath.log_complex_nil_nil
-      local exp = math.exp
-      local sin = math.sin
-      local cos = math.cos
-      return function(x, y, result)
-        result = cc(result)
-        if y == 0 then return fill(result, 1, 0) end
-        if x.a == 0 and x.b == 0 then return fill(result, 0, 0) end
-        local w = log(x)
-        local argument = y * w.b
-        local size = exp(y * w.a)
-        return fill(result, size * cos(argument), size * sin(argument))
-      end
-    end,
-    return_type = function(types) return 'boolean' end
-  },
   { -- pow(complex, complex)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
-      local cc = vornmath.constructCheck('complex')
       local fill = vornmath.fill_complex_number_number
       local log = vornmath.log_complex_nil_nil
       local exp = math.exp
@@ -1529,7 +1482,6 @@ vornmath.bakeries.pow = {
       local cos = math.cos
       local mul = vornmath.mul_complex_complex
       return function(x, y, result)
-        result = cc(result)
         if y.a == 0 and y.b == 0 then return fill(result, 1, 0) end
         if x.a == 0 and x.b == 0 then return fill(result, 0, 0) end
         local w = log(x)
@@ -1544,12 +1496,34 @@ vornmath.bakeries.pow = {
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat','quat','quat'}),
     create = function(types)
       local fill = vornmath.fill_quat_number_number_number_number
-      local log = vornmath.log_quat_quat
+      local decompose = vornmath.axisDecompose_quat
+      local log = vornmath.log_complex_nil_complex
       local exp = vornmath.exp_quat_quat
-      
+      local mul = vornmath.mul_quat_quat_quat
+      local regenerate = vornmath.quat_complex_vec3
+      local eq = vornmath.eq_quat_number
+      return function(base, exponent, result)
+        if eq(exponent, 0) then return fill(result, 1, 0, 0, 0) end
+        if eq(base, 0) then return fill(result, 0, 0, 0, 0) end
+        local c, a = decompose(base)
+        if c.b == 0 then
+          local _
+          _, a = decompose(exponent)
+          -- since log can come up with complex results for real inputs,
+          -- I want to make sure that it does so in line with the other quaternion.
+          -- this is how we do that.
+        end
+        c = log(c, nil, c)
+        local logbase = regenerate(c, a)
+        result = mul(logbase, exponent, result)
+        result = exp(result, result)
+        return result
+      end
     end,
     return_type = function(types) return 'quat' end
-  }
+  },
+  vornmath.utils.scalarReturnOnlys('pow', 2),
+  vornmath.utils.twoMixedScalars('pow'),
 }
 
 vornmath.bakeries.tostring = {
