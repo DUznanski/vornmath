@@ -87,6 +87,95 @@ function vornmath.utils.buildProxies(function_name, types)
   vornmath.metatables[types[#types]][built_name] = vornmath[function_name .. '_' .. table.concat(types, '_')]
 end
 
+function vornmath.utils.findTypeByData(shape, dim, storage)
+  if shape == 'scalar' then dim = 1 end
+  for typename, meta in pairs(vornmath.metatables) do
+    if meta.vm_storage == storage and meta.vm_shape == shape then
+      if type(dim) == 'number' then
+        if meta.vm_dim == dim then
+          return typename
+        end
+      else -- type(dim) == 'table'
+        local matches = true
+        for i,k in ipairs(dim) do
+          if meta.vm_dim[i] ~= k then matches = false end
+        end
+        if matches then return typename end
+      end
+    end
+  end
+end
+
+function vornmath.utils.componentWiseReturnOnlys(function_name, arity)
+  return {
+    signature_check = function(types)
+      if #types < arity then return false end
+      if #types > arity then
+        -- since we're targeting a specific arity only nils after that
+        for i, typename in ipairs(types) do
+          if i > arity and typename ~= 'nil' then return false end
+        end
+      end
+      local big_type = vornmath.utils.componentWiseConsensusType(types)
+      if not big_type then return false end
+      local full_types = {}
+      for i, typename in ipairs(types) do
+        full_types[i] = typename
+      end
+      full_types[arity + 1] = big_type
+      if vornmath.utils.hasBakery(function_name, full_types) then
+        table.insert(types, 'nil')
+        return true
+      end
+    end,
+    create = function(types)
+      local big_type = vornmath.utils.componentWiseConsensusType(types)
+      local full_types = {}
+      local letters = {}
+      for i = 1,arity do
+        full_types[i] = types[i]
+        letters[i] = LETTERS[i]
+      end
+      full_types[arity + 1] = big_type
+      local f = vornmath.utils.bake(function_name, full_types)
+      local create = vornmath.utils.bake(big_type, {})
+      local letter_glom = table.concat(letters, ', ')
+      local code = [[
+        local f = select(1, ...)
+        local create = select(2, ...)
+        return function(]] .. letter_glom .. [[)
+          return f(]] .. letter_glom .. [[, create())
+        end
+      ]]
+      return load(code)(f, create)
+    end
+  }
+end
+
+function vornmath.utils.componentWiseConsensusType(types)
+  local shape, dim, storage
+  for i, typename in ipairs(types) do
+    local meta = vornmath.metatables[typename]
+    if meta.vm_shape == 'vector' then
+      if shape and (shape ~= 'vector' and shape ~= 'scalar') then return nil end
+      if dim and dim ~= meta.vm_dim then return nil end
+      shape = meta.vm_shape
+      dim = meta.vm_dim
+    elseif meta.vm_shape == 'matrix' then
+      if shape and (shape ~= 'matrix' and shape ~= 'scalar') then return nil end
+      if dim and (dim[1] ~= meta.vm_dim[1] or dim[2] ~= meta.vm_dim[2]) then return nil end
+      shape = meta.vm_shape
+      dim = meta.vm_dim
+    elseif meta.vm_shape == 'scalar' then
+      if not shape then shape = 'scalar' end
+    elseif meta.vm_shape == 'string' then -- strings aren't allowed
+      return nil
+    end
+  end
+  storage = vornmath.utils.consensusStorage(types)
+  return vornmath.utils.findTypeByData(shape, dim, storage)
+end
+
 vornmath.utils.vm_meta = {
   __index = function(vornmath, index)
     -- is this supposed to be a base proxy or a fully qualified function?
@@ -886,6 +975,14 @@ function vornmath.utils.twoMixedScalars(function_name)
   }
 end
 
+function vornmath.utils.consensusType(types)
+  local storage, shape, dim
+  for _,typename in ipairs(types) do
+    local meta = vornmath.metatables[typename]
+    
+  end
+end
+
 function vornmath.utils.scalarReturnOnlys(function_name, arity)
   return {
     signature_check = function(types)
@@ -938,6 +1035,7 @@ end
 function vornmath.utils.componentWiseVectorScalar(function_name)
   return {
     signature_check = function(types)
+      if #types < 3 then return false end
       local first_meta = vornmath.metatables[types[1]]
       local second_meta = vornmath.metatables[types[2]]
       local third_meta = vornmath.metatables[types[3]]
@@ -969,6 +1067,146 @@ function vornmath.utils.componentWiseVectorScalar(function_name)
     end
   }
 end
+
+function vornmath.utils.componentWiseScalarVector(function_name)
+  return {
+    signature_check = function(types)
+      if #types < 3 then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      if (first_meta.vm_shape ~= 'scalar'
+       or second_meta.vm_shape ~= 'vector'
+       or third_meta.vm_shape ~= 'vector'
+       or first_meta.vm_dim ~= third_meta.vm_dim) then
+        return false
+      end
+      if vornmath.utils.hasBakery(function_name, {first_meta.vm_storage, second_meta.vm_storage, third_meta.vm_storage}) then
+        types[4] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      local dim = first_meta.vm_dim
+      local f = vornmath.utils.bake(function_name, {first_meta.vm_storage, second_meta.vm_storage, third_meta.vm_storage})
+      return function(a,b,c)
+        for i = 1,dim do
+          c[i] = f(a,b[i],c[i])
+        end
+        return c
+      end
+    end,
+    return_type = function(types)
+    end
+  }
+end
+
+function vornmath.utils.componentWiseVectorVector(function_name)
+  return {
+    signature_check = function(types)
+      if #types < 3 then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      if (first_meta.vm_shape ~= 'vector'
+       or second_meta.vm_shape ~= 'vector'
+       or third_meta.vm_shape ~= 'vector'
+       or first_meta.vm_dim ~= third_meta.vm_dim) then
+        return false
+      end
+      if vornmath.utils.hasBakery(function_name, {first_meta.vm_storage, second_meta.vm_storage, third_meta.vm_storage}) then
+        types[4] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      local dim = first_meta.vm_dim
+      local f = vornmath.utils.bake(function_name, {first_meta.vm_storage, second_meta.vm_storage, third_meta.vm_storage})
+      return function(a,b,c)
+        for i = 1,dim do
+          c[i] = f(a[i],b[i],c[i])
+        end
+        return c
+      end
+    end,
+    return_type = function(types)
+    end
+  }
+end
+
+function vornmath.utils.componentWiseVector(function_name)
+  return {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      if (first_meta.vm_shape ~= 'vector'
+       or second_meta.vm_shape ~= 'vector'
+       or first_meta.vm_dim ~= second_meta.vm_dim) then
+        return false
+      end
+      if vornmath.utils.hasBakery(function_name, {first_meta.vm_storage, second_meta.vm_storage}) then
+        types[4] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local dim = first_meta.vm_dim
+      local f = vornmath.utils.bake(function_name, {first_meta.vm_storage, second_meta.vm_storage})
+      return function(a,b)
+        for i = 1,dim do
+          b[i] = f(a[i],b[i])
+        end
+        return b
+      end
+    end,
+    return_type = function(types)
+    end
+  }
+end
+
+function vornmath.utils.componentWiseVectorNil(function_name)
+  return {
+    signature_check = function(types)
+      if #types < 3 then return false end
+      if types[2] ~= 'nil' then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[3]]
+      if (first_meta.vm_shape ~= 'vector'
+       or second_meta.vm_shape ~= 'vector'
+       or first_meta.vm_dim ~= second_meta.vm_dim) then
+        return false
+      end
+      if vornmath.utils.hasBakery(function_name, {first_meta.vm_storage, second_meta.vm_storage}) then
+        types[4] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[3]]
+      local dim = first_meta.vm_dim
+      local f = vornmath.utils.bake(function_name, {first_meta.vm_storage, second_meta.vm_storage})
+      return function(a,_,b)
+        for i = 1,dim do
+          b[i] = f(a[i],nil,b[i])
+        end
+        return b
+      end
+    end,
+    return_type = function(types)
+    end
+  }
+end
+
 vornmath.bakeries.add = {
   { -- add(number, number, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number'}),
@@ -997,7 +1235,10 @@ vornmath.bakeries.add = {
     end,
     return_type = function(types) return 'quat' end
   },
-  vornmath.utils.scalarReturnOnlys('add',2),
+  vornmath.utils.componentWiseVectorScalar('add'),
+  vornmath.utils.componentWiseScalarVector('add'),
+  vornmath.utils.componentWiseVectorVector('add'),
+  vornmath.utils.componentWiseReturnOnlys('add', 2),
   vornmath.utils.twoMixedScalars('add')
 }
 
@@ -1029,7 +1270,8 @@ vornmath.bakeries.unm = {
     end,
     return_type = function(types) return 'quat' end
   },
-  vornmath.utils.scalarReturnOnlys('unm', 1),
+  vornmath.utils.componentWiseVector('unm'),
+  vornmath.utils.componentWiseReturnOnlys('unm', 1),
 }
 
 vornmath.bakeries.sub = {
@@ -1060,7 +1302,10 @@ vornmath.bakeries.sub = {
     end,
     return_type = function(types) return 'quat' end
   },
-  vornmath.utils.scalarReturnOnlys('sub', 2),
+  vornmath.utils.componentWiseVectorScalar('sub'),
+  vornmath.utils.componentWiseScalarVector('sub'),
+  vornmath.utils.componentWiseVectorVector('sub'),
+  vornmath.utils.componentWiseReturnOnlys('sub', 2),
   vornmath.utils.twoMixedScalars('sub')
 }
 
@@ -1095,7 +1340,10 @@ vornmath.bakeries.mul = {
     end,
     return_type = function(types) return 'quat' end
   },
-  vornmath.utils.scalarReturnOnlys('mul', 2),
+  vornmath.utils.componentWiseVectorScalar('mul'),
+  vornmath.utils.componentWiseScalarVector('mul'),
+  vornmath.utils.componentWiseVectorVector('mul'),
+  vornmath.utils.componentWiseReturnOnlys('mul', 2),
   vornmath.utils.twoMixedScalars('mul')
 }
 
@@ -1159,7 +1407,9 @@ vornmath.bakeries.div = {
     return_type = function(types) return types[3] end
   },
   vornmath.utils.componentWiseVectorScalar('div'),
-  vornmath.utils.scalarReturnOnlys('div', 2),
+  vornmath.utils.componentWiseScalarVector('div'),
+  vornmath.utils.componentWiseVectorVector('div'),
+  vornmath.utils.componentWiseReturnOnlys('div', 2),
 }
 
 vornmath.bakeries.mod = {
@@ -1169,7 +1419,12 @@ vornmath.bakeries.mod = {
       return function(x, y) return x % y end
     end,
     return_type = function(types) return 'number' end
-  }
+  },
+  vornmath.utils.componentWiseVectorScalar('mod'),
+  vornmath.utils.componentWiseScalarVector('mod'),
+  vornmath.utils.componentWiseVectorVector('mod'),
+  vornmath.utils.componentWiseReturnOnlys('mod', 2),
+
 }
 
 vornmath.bakeries.eq = {
@@ -1269,11 +1524,11 @@ vornmath.bakeries.eq = {
     create = function(types)
       local first = vornmath.metatables[types[1]]
       local second = vornmath.metatables[types[2]]
-      local consensus_operator = vornmath['eq_' .. first.vm_storage .. '_' .. second.vm_storage]
+      local equals = vornmath.utils.bake('eq', {first.vm_storage, second.vm_storage})
       local length = first.vm_dim
       return function(a, b)
         for i = 1,length do
-          if not consensus_operator(a[i], b[i]) then return false end
+          if not equals(a[i], b[i]) then return false end
         end
         return true
       end
@@ -1308,6 +1563,9 @@ vornmath.bakeries.atan = {
     end,
     return_type = function(types) return 'number' end
   },
+  vornmath.utils.componentWiseVectorVector('atan'),
+  vornmath.utils.componentWiseVectorNil('atan'),
+  vornmath.utils.componentWiseReturnOnlys('atan', 2),
 }
 
 -- TODO: quat, outvars
@@ -1375,7 +1633,10 @@ vornmath.bakeries.log = {
     end,
     return_type = function(types) return 'complex' end
   },
-  vornmath.utils.scalarReturnOnlys('log', 2),
+  vornmath.utils.componentWiseVectorScalar('log'),
+  vornmath.utils.componentWiseVectorVector('log'),
+  vornmath.utils.componentWiseVectorNil('log'),
+  vornmath.utils.componentWiseReturnOnlys('log', 2),
   vornmath.utils.twoMixedScalars('log'),
 }
 
@@ -1434,7 +1695,6 @@ vornmath.bakeries.axisDecompose = {
   }
 }
 
--- TODO: outvars
 vornmath.bakeries.exp = {
   { -- exp(number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
@@ -1461,7 +1721,6 @@ vornmath.bakeries.exp = {
   vornmath.utils.quatOperatorFromComplex('exp')
 }
 
--- TODO: outvars, everything else
 vornmath.bakeries.pow = {
   { -- pow(number, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
@@ -1472,7 +1731,7 @@ vornmath.bakeries.pow = {
     end,
     return_type = function(types) return 'number' end
   },
-  { -- pow(complex, complex)
+  { -- pow(complex, complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
       local fill = vornmath.fill_complex_number_number
@@ -1753,8 +2012,6 @@ vornmath.metatables['string'] = {
   vm_storage = 'string'
 }
 
-
-
 setmetatable(vornmath.metatables['nil'], vornmath.metameta)
 setmetatable(vornmath.metatables['string'], vornmath.metameta)
 
@@ -1826,7 +2083,7 @@ for _, scalar_name in ipairs({'number', 'complex'}) do
         }
         setmetatable(vornmath.metatables[typename], vornmath.metameta)
       end
-      vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width)] = vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width) .. 'x' .. tostring(width)]
+    vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width)] = vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width) .. 'x' .. tostring(width)]
   end
 end
 

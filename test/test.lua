@@ -281,4 +281,10 @@ function testMatrixConstruct()
     lu.assertEquals(e[1][2], vm.complex(2))
 end
 
+function testVectorOperators()
+    local a = vm.vec3(4,6,8)
+    local b = 2
+    lu.assertEquals(a / b, vm.vec3(2,3,4))
+end
+
 os.exit(lu.LuaUnit.run())
