@@ -285,6 +285,18 @@ function testVectorOperators()
     local a = vm.vec3(4,6,8)
     local b = 2
     lu.assertEquals(a / b, vm.vec3(2,3,4))
+    lu.assertEquals(b + a, vm.vec3(6,8,10))
+    lu.assertEquals(a * a, vm.vec3(16,36,64))
+    lu.assertEquals(-a, vm.vec3(-4,-6,-8))
+end
+
+function testMatrixOperators()
+    local a = vm.mat2x3(1,2,3,4,5,6)
+    local b = 10
+    lu.assertEquals(a + a, vm.mat2x3(2,4,6,8,10,12))
+    lu.assertEquals(b - a, vm.mat2x3(9,8,7,6,5,4))
+    lu.assertEquals(a * b, vm.mat2x3(10,20,30,40,50,60))
+    lu.assertEquals(-a, vm.mat2x3(-1,-2,-3,-4,-5,-6))
 end
 
 os.exit(lu.LuaUnit.run())
