@@ -299,4 +299,14 @@ function testMatrixOperators()
     lu.assertEquals(-a, vm.mat2x3(-1,-2,-3,-4,-5,-6))
 end
 
+function testMatrixMultiplication()
+    local a = vm.mat2x3(1,2,3,4,5,6)
+    local b = vm.mat3x2(1,2,3,4,5,6)
+    local v = vm.vec3(1,2,3)
+    lu.assertEquals(a * b, vm.mat3(9,12,15,19,26,33,29,40,51))
+    lu.assertEquals(b * a, vm.mat2(22,28,49,64))
+    lu.assertEquals(v * a, vm.vec2(14,32))
+    lu.assertEquals(b * v, vm.vec2(22,28))
+end
+
 os.exit(lu.LuaUnit.run())
