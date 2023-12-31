@@ -1,3 +1,27 @@
+--[[
+MIT License
+
+Copyright (c) 2022-2023 Dan Uznanski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]]
+
 local vornmath = {}
 
 -- loadstring gets folded into load in later versions (5.2+)
@@ -43,33 +67,12 @@ function vornmath.utils.hasBakery(function_name, types)
   return false
 end
 
-function vornmath.utils.bake(function_name, types)
-  local bakery = vornmath.utils.hasBakery(function_name, types)
-  if bakery == nil then error("unknown vornmath function `" .. function_name .. "`.") end
-  if bakery == false then error('vornmath function `' .. function_name .. '` does not accept types `' .. table.concat(types, ', ') .. '`.') end
-  local name = function_name .. '_' .. table.concat(types, '_')
-  if rawget(vornmath, name) then return vornmath[name] end
-  ---@diagnostic disable-next-line: need-check-nil, undefined-field
-  local result = bakery.create(types)
-  vornmath[name] = result
-  vornmath.utils.buildProxies(function_name, types)
-  return result
-end
-
-function vornmath.utils.bakeByCall(name, ...)
-  local types = {}
-  for i = 1, select('#', ...) do
-    types[i] = vornmath.type(select(i, ...))
-  end
-  local f = vornmath.utils.bake(name, types)
-  return f
-end
-
-function vornmath.utils.buildProxies(function_name, types)
+local function buildProxies(function_name, types)
   local built_name = '_' .. function_name
   if not rawget(vornmath, function_name) then
     local existing_name = built_name
-    vornmath[function_name] = function(...) return vornmath.getmetatable(select(1, ...))[existing_name](...) end
+    local gmt = vornmath.utils.getmetatable
+    vornmath[function_name] = function(...) return gmt(select(1, ...))[existing_name](...) end
   end
   local final_name
   for i,type_name in ipairs(types) do
@@ -81,11 +84,33 @@ function vornmath.utils.buildProxies(function_name, types)
     end
     built_name = next_name
     if not rawget(vornmath.metatables[type_name], existing_name) then
-      vornmath.metatables[type_name][existing_name] = function(...) return vornmath.getmetatable(select(select_index, ...))[next_name](...) end
+      vornmath.metatables[type_name][existing_name] = function(...) return vornmath.utils.getmetatable(select(select_index, ...))[next_name](...) end
     end
   end
   vornmath.metatables[types[#types]][built_name] = vornmath[function_name .. '_' .. table.concat(types, '_')]
 end
+
+function vornmath.utils.bake(function_name, types)
+  local bakery = vornmath.utils.hasBakery(function_name, types)
+  if bakery == nil then error("unknown vornmath function `" .. function_name .. "`.") end
+  if bakery == false then error('vornmath function `' .. function_name .. '` does not accept types `' .. table.concat(types, ', ') .. '`.') end
+  local name = function_name .. '_' .. table.concat(types, '_')
+  if rawget(vornmath, name) then return vornmath[name] end
+  ---@diagnostic disable-next-line: need-check-nil, undefined-field
+  local result = bakery.create(types)
+  vornmath[name] = result
+  buildProxies(function_name, types)
+  return result
+end
+
+function vornmath.utils.bakeByCall(name, ...)
+  local types = {}
+  for i = 1, select('#', ...) do
+    types[i] = vornmath.utils.type(select(i, ...))
+  end
+  return vornmath.utils.bake(name, types)
+end
+
 
 function vornmath.utils.findTypeByData(shape, dim, storage)
   if shape == 'scalar' then dim = 1 end
@@ -197,7 +222,7 @@ vornmath.utils.vm_meta = {
       -- instead, bake *only* the proxy.
       if not vornmath.bakeries[index] then error("unknown vornmath function `" .. index .. "`.") end
       local proxy_index = '_' .. index
-      vornmath[index] = function(...) return vornmath.getmetatable(select(1, ...))[proxy_index](...) end
+      vornmath[index] = function(...) return vornmath.utils.getmetatable(select(1, ...))[proxy_index](...) end
       return vornmath[index]
     end
   end
@@ -205,12 +230,12 @@ vornmath.utils.vm_meta = {
 
 setmetatable(vornmath, vornmath.utils.vm_meta)
 
-function vornmath.type(obj)
+function vornmath.utils.type(obj)
   local mt = getmetatable(obj)
   return (mt and mt.vm_type) or type(obj)
 end
 
-function vornmath.getmetatable(obj)
+function vornmath.utils.getmetatable(obj)
   local mt = getmetatable(obj)
   if mt and mt.vm_type then
     return mt
@@ -782,7 +807,7 @@ vornmath.bakeries.fill = {
   }
 }
 
-function vornmath.utils.generic_constructor(typename)
+function vornmath.utils.genericConstructor(typename)
   return {
     signature_check = function(types)
       local extended_types = {typename}
@@ -821,7 +846,7 @@ vornmath.bakeries.boolean = {
     end,
     return_type = function(types) return 'boolean' end
   },
-  vornmath.utils.generic_constructor('boolean')
+  vornmath.utils.genericConstructor('boolean')
 }
 
 vornmath.bakeries.number = {
@@ -832,7 +857,7 @@ vornmath.bakeries.number = {
     end,
     return_type = function(types) return 'number' end
   },
-  vornmath.utils.generic_constructor('number')
+  vornmath.utils.genericConstructor('number')
 }
 
 vornmath.bakeries.complex = {
@@ -846,7 +871,7 @@ vornmath.bakeries.complex = {
     end,
     return_type = function(types) return 'complex' end
   },
-  vornmath.utils.generic_constructor('complex')
+  vornmath.utils.genericConstructor('complex')
 }
 
 vornmath.bakeries.quat = {
@@ -860,11 +885,11 @@ vornmath.bakeries.quat = {
     end,
     return_type = function(types) return 'quat' end
   },
-  vornmath.utils.generic_constructor('quat')
+  vornmath.utils.genericConstructor('quat')
 }
 
 
-function vornmath.utils.vector_nil_constructor(storage,d)
+function vornmath.utils.vectorNilConstructor(storage,d)
   local typename = SCALAR_PREFIXES[storage] .. 'vec' .. d
   return { -- vecd()
     signature_check = vornmath.utils.justNilTypeCheck,
@@ -886,13 +911,13 @@ end
 for _,storage in ipairs({'boolean', 'number', 'complex'}) do
   for d = 2,4 do
     vornmath.bakeries[SCALAR_PREFIXES[storage] .. 'vec' .. d] = {
-      vornmath.utils.vector_nil_constructor(storage, d),
-      vornmath.utils.generic_constructor(SCALAR_PREFIXES[storage] .. 'vec' .. d)
+      vornmath.utils.vectorNilConstructor(storage, d),
+      vornmath.utils.genericConstructor(SCALAR_PREFIXES[storage] .. 'vec' .. d)
     }
   end
 end
 
-function vornmath.utils.matrix_nil_constructor(storage,w,h)
+function vornmath.utils.matrixNilConstructor(storage,w,h)
   local prefix = SCALAR_PREFIXES[storage]
   local typename = prefix .. 'mat' .. w .. 'x' .. h
   return {
@@ -923,8 +948,8 @@ for _,storage in ipairs({'number', 'complex'}) do
     for h = 2,4 do
       local typename = SCALAR_PREFIXES[storage] .. 'mat' .. w .. 'x' .. h
       vornmath.bakeries[typename] = {
-        vornmath.utils.matrix_nil_constructor(storage, w, h),
-        vornmath.utils.generic_constructor(typename)
+        vornmath.utils.matrixNilConstructor(storage, w, h),
+        vornmath.utils.genericConstructor(typename)
       }
     end
   end
@@ -1944,16 +1969,6 @@ vornmath.bakeries.eq = {
   }
 }
 
-vornmath.bakeries.lt = {
-  { -- lt(number, number)
-    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
-    create = function(types)
-      return function(x, y) return x < y end
-    end,
-    return_type = function(types) return 'boolean' end
-  },
-}
-
 vornmath.bakeries.atan = {
   { -- atan(number)
     signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
@@ -1975,7 +1990,7 @@ vornmath.bakeries.atan = {
   vornmath.utils.componentWiseReturnOnlys('atan', 2),
 }
 
--- TODO: quat, outvars
+-- TODO: quat
 vornmath.bakeries.log = {
   { -- log(number)
     signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
@@ -2056,7 +2071,6 @@ vornmath.bakeries.arg = {
   }
 }
 
---TODO: split outvars
 vornmath.bakeries.axisDecompose = {
   { -- axisDecompose(quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex', 'vec3'}),
@@ -2412,7 +2426,7 @@ setmetatable(vornmath.metatables['string'], vornmath.metameta)
 
 do
   local unm = vornmath.unm
-  function vornmath.utils.unm_proxy(a) return unm(a) end
+  vornmath.utils.unmProxy = function(a) return unm(a) end
 end
 
 for _, scalar_name in ipairs({'boolean', 'number', 'complex', 'quat'}) do
@@ -2426,7 +2440,7 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex', 'quat'}) do
     __sub = vornmath.sub,
     __mul = vornmath.mul,
     __div = vornmath.div,
-    __unm = vornmath.utils.unm_proxy,
+    __unm = vornmath.utils.unmProxy,
     __pow = vornmath.pow,
     __tostring = vornmath.tostring,
   }
@@ -2446,7 +2460,7 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex'}) do
       __sub = vornmath.sub,
       __mul = vornmath.mul,
       __div = vornmath.div,
-      __unm = vornmath.utils.unm_proxy,
+      __unm = vornmath.utils.unmProxy,
       __pow = vornmath.pow,
       __tostring = vornmath.tostring,
     }
@@ -2468,7 +2482,7 @@ for _, scalar_name in ipairs({'number', 'complex'}) do
         __sub = vornmath.sub,
         __mul = vornmath.mul,
         __div = vornmath.div,
-        __unm = vornmath.utils.unm_proxy,
+        __unm = vornmath.utils.unmProxy,
         __pow = vornmath.pow,
         __tostring = vornmath.tostring,
         }
