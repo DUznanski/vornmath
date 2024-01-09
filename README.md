@@ -6,7 +6,8 @@ Vornmath is (will be) a comprehensive vector and complex math library for lua.
 
 ## Installing and Using
 
-Vornmath is a single file, pure Lua library; it does not add any symbols to global.  Just put it somewhere convenient in your source tree and do
+Vornmath is a single file, pure Lua library; it does not add any symbols to
+global.  Just put `vornmath.lua` somewhere convenient in your source tree and do
 
 ```lua
 local vm = require('vornmath')
@@ -46,8 +47,8 @@ types for its inputs, so it has many signatures, some of which are:
 
 ```lua
 mul
-mul_number_number
-mul_vec3_cvec3
+mul_number_number_nil
+mul_vec3_cvec3_nil
 mul_mat4_number_mat4
 ```
 
@@ -124,9 +125,9 @@ instead.
 ### `number`
 
 ```lua
-number() --> 0
-number(n) --> n
-number(str, [base]) --> string as number in given base (default 10)
+vm.number() --> 0
+vm.number(n) --> n
+vm.number(str, [base]) --> string as number in given base (default 10)
 ```
 
 this is Lua's built-in `number` type.  There's not much to say about it!
@@ -136,10 +137,10 @@ The interpretation of strings as numbers comes directly from Lua.
 ### `complex`
 
 ```lua
-complex() --> 0 + 0i
-complex(a) --> a + 0i
-complex(a, b) --> a + bi
-complex(a + bi) --> a + bi
+vm.complex() --> 0 + 0i
+vm.complex(a) --> a + 0i
+vm.complex(a, b) --> a + bi
+vm.complex(a + bi) --> a + bi
 ```
 
 Complex numbers, of the form `a + bi`.  They have fields `a`, the real part, and
@@ -148,19 +149,19 @@ Complex numbers, of the form `a + bi`.  They have fields `a`, the real part, and
 numbers: these functions have some values in which no real answer is possible,
 and so will not work when given a `number`, but will when given a `complex` of
 equivalent value.  In addition, complex numbers do not have a natural ordering,
-so `lt` (`<`) and its friends will not work even on real-valued complexes.
+so `<` and its friends will not work even on real-valued complexes.
 
 ### `quat`ernion
 
 ```lua
-quat() --> 0 + 0i + 0j + 0k
-quat(a) --> a + 0i + 0j + 0k
-quat(a,b,c,d) --> a + bi + cj + dk
-quat(a+bi) --> a + bi + 0j + 0k
-quat(a+bi, c+di) --> a + bi + cj + dk
-quat(a+bi+cj+dk) --> a + bi + cj + dk
-quat(vec3(b, c, d), angle) --> cos(angle/2) + sin(angle/2) * (bi + cj + dk) 
-quat(a+bi, vec3(c, d, e)) --> a + b * (ci + dj + ek)
+vm.quat() --> 0 + 0i + 0j + 0k
+vm.quat(a) --> a + 0i + 0j + 0k
+vm.quat(a,b,c,d) --> a + bi + cj + dk
+vm.quat(a+bi) --> a + bi + 0j + 0k
+vm.quat(a+bi, c+di) --> a + bi + cj + dk
+vm.quat(a+bi+cj+dk) --> a + bi + cj + dk
+vm.quat(vm.vec3(b, c, d), angle) --> cos(angle/2) + sin(angle/2)*(bi + cj + dk) 
+vm.quat(a+bi, vm.vec3(c, d, e)) --> a + b * (ci + dj + ek)
 ```
 
 Higher dimensional complex numbers, of the form `a + bi + cj + dk`.  Fields `a`,
@@ -176,8 +177,8 @@ something else.
 ### `boolean`
 
 ```lua
-boolean() --> false
-boolean(x) --> x
+vm.boolean() --> false
+vm.boolean(x) --> x
 ```
 
 This is Lua's built-in `boolean` type.  Not much to say about it either!
@@ -185,10 +186,10 @@ This is Lua's built-in `boolean` type.  Not much to say about it either!
 ### `vec`tors
 
 ```lua
-vec2() --> <0, 0>
-vec3(a) --> <a, a, a>
-cvec4(vec2(a,b), cvec3(c,d,e)) --> <complex(a), complex(b), c, d>
-bvec2() --> <false, false>
+vm.vec2() --> <0, 0>
+vm.vec3(a) --> <a, a, a>
+vm.cvec4(vm.vec2(a,b), vm.cvec3(c,d,e)) --> <complex(a), complex(b), c, d>
+vm.bvec2() --> <false, false>
 ```
 
 Vectors.  There are actually 9 vector types: `vec2`, `vec3`, and `vec4` are 2-,
@@ -206,10 +207,10 @@ long as the last component of the vector lands in the last argument.
 ### `mat`rices
 
 ```lua
-cmat2() --> [[1+0i,0+0i], [0+0i,1+0i]]
-mat3(a) --> [[a,0,0], [0,a,0], [0,0,a]]
-mat2x3(a,b,c,d,e,f) --> [[a,b,c], [d,e,f]]
-mat3(mat2x3(a,b,c,d,e,f)) --> [[a,b,c], [d,e,f], [0,0,1]]
+vm.cmat2() --> [[1+0i,0+0i], [0+0i,1+0i]]
+vm.mat3(a) --> [[a,0,0], [0,a,0], [0,0,a]]
+vm.mat2x3(a,b,c,d,e,f) --> [[a,b,c], [d,e,f]]
+vm.mat3(mat2x3(a,b,c,d,e,f)) --> [[a,b,c], [d,e,f], [0,0,1]]
 ```
 
 Matrices.  There's 18 of these!  They can use numbers or complexes, can be 2 to
@@ -244,7 +245,7 @@ operators.
 
 ```lua
 a + b --> a + b
-add(a, b[, c]) --> c = a + b
+vm.add(a, b[, c]) --> c = a + b
 ```
 
 Addition!  If applied to a vector and a scalar, or a matrix and a scalar, or two
@@ -255,7 +256,7 @@ vectors of the same size, or two matrices of the same size, it operates
 
 ```lua
 a - b --> a - b
-sub(a, b[, c]) --> c = a - b
+vm.sub(a, b[, c]) --> c = a - b
 ```
 
 Subtraction!  Just like addition, but using the negation of the second argument.
@@ -264,7 +265,7 @@ Subtraction!  Just like addition, but using the negation of the second argument.
 
 ```lua
 -a --> -a
-unm(a[, b]) --> b = -a
+vm.unm(a[, b]) --> b = -a
 ```
 
 Unary negation!  Works on everything.
@@ -273,7 +274,7 @@ Unary negation!  Works on everything.
 
 ```lua
 a * b --> a * b
-mul(a, b[, c]) --> c = a * b 
+vm.mul(a, b[, c]) --> c = a * b 
 ```
 
 Multiplication!  If applied to a vector and a scalar, or a matrix and a scalar,
@@ -293,7 +294,7 @@ the same for this to work.
 
 ```lua
 a / b --> a / b
-div(a, b[, c]) --> c = a / b
+vm.div(a, b[, c]) --> c = a / b
 ```
 
 Division!  Uses the same rules as addition.  For quaternions, non-commutative
@@ -304,7 +305,7 @@ Vornmath uses `p * (1/q)`, sometimes called right division.
 
 ```lua
 a % b --> a % b
-div(a, b[, c]) --> c = a % b
+vm.div(a, b[, c]) --> c = a % b
 ```
 
 Modulus!  Only works on `number`s and vectors and matrices storing `number`s.
@@ -314,7 +315,7 @@ Gives the remainder of division, `p/q - floor(p/q)`.  Works componentwise.
 
 ```lua
 a ^ b --> a ^ b
-pow(a, b[, c]) --> c = a ^ b
+vm.pow(a, b[, c]) --> c = a ^ b
 ```
 
 Exponentiation!  Some things that are illegal in real numbers will work
@@ -326,12 +327,12 @@ all.
 
 ```lua
 a == b --> a == b
-eq(a, b) --> a == b
+vm.eq(a, b) --> a == b
 ```
 
 Equality!  Works on anything; will return `true` if all elements are equal. For
 differing number types, will implicitly convert to the necessary type, so
-`eq(5, complex(5,0))` is `true`.
+`vm.eq(5, complex(5,0))` is `true`.
 
 **warning**: using the symbolic equals `==` on `number` and a type other than
 `number` doesn't work correctly and will always return `false`, due to
@@ -341,7 +342,7 @@ do that.
 #### `tostring`
 
 ```lua
-tostring(a) --> a string representation of a
+vm.tostring(a) --> a string representation of a
 ```
 
 Technically this isn't an operator, but it is a thing that gets a metamethod.
@@ -353,22 +354,22 @@ valid Lua code: they're designed to be reasonable to look at.
 #### `atan`
 
 ```lua
-atan(y[, nil, phi]) --> phi = angle
-atan(y, x[, phi]) --> phi = angle
+vm.atan(y[, nil, phi]) --> phi = angle
+vm.atan(y, x[, phi]) --> phi = angle
 ```
 
 Computes the inverse tangent or arctangent of the given value.  For `numbers`,
-optionally accepts two parameters such that `atan(y, x)` will give the correct
-angle across the whole circle, equivalent to `atan2`.  **the out variable is
-the *third* parameter** for this function because of this.  This function acts
-componentwise on vectors for both `y` and `x`.
+optionally accepts two parameters such that `vm.atan(y, x)` will give the
+correct angle across the whole circle, equivalent to `atan2`.  **the out
+variable is the *third* parameter** for this function because of this.  This
+function acts componentwise on vectors for both `y` and `x`.
 
 ### Exponential functions
 
 #### `exp`
 
 ```lua
-exp(x[, y]) --> y = e^x
+vm.exp(x[, y]) --> y = e^x
 ```
 
 Computes the exponential function `e^z`.
@@ -376,12 +377,12 @@ Computes the exponential function `e^z`.
 #### `log`
 
 ```lua
-log(x[, nil, y]) --> y = ln x
-log(x, b[, y]) --> y = log_b x
+vm.log(x[, nil, y]) --> y = ln x
+vm.log(x, b[, y]) --> y = log_b x
 ```
 
 Computes the logarithm.  For single-argument calls, this is the natural log.
-The second argument changes the base: `log(8,2) = 3` because `2^3 = 8`.  This
+The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.  This
 function acts componentwise on vectors.
 
 ### Complex and Quaternion functions
@@ -389,7 +390,7 @@ function acts componentwise on vectors.
 #### `arg`
 
 ```lua
-arg(a+bi[, x]) --> x = atan(b, a)
+vm.arg(a+bi[, x]) --> x = atan(b, a)
 ```
 
 Computes the argument or phase of a complex number, the angle the complex
@@ -398,8 +399,8 @@ number makes with the positive real line.
 #### `conj`
 
 ```lua
-arg(a+bi[, z]) --> z = a-bi
-arg(a+bi+cj+dk[, z]) --> z = a-bi-cj-dk
+vm.arg(a+bi[, z]) --> z = a-bi
+vm.arg(a+bi+cj+dk[, z]) --> z = a-bi-cj-dk
 ```
 
 Computes the conjugate of a complex number or quaternion, which is the same
@@ -408,7 +409,7 @@ number except with all the signs on the complex parts switched.
 #### `axisDecompose`
 
 ```lua
-axisDecompose(a+bi+cj+dk[, cpx, axis]) --> ...
+vm.axisDecompose(a+bi+cj+dk[, cpx, axis]) --> ...
 -- local l = sqrt(b^2 + c^2 + d^2)
 -- cpx = a + li
 -- axis = <b, c, d> / l
@@ -422,7 +423,7 @@ turn be fed back into `vm.quat` to reconstruct the original quaternion.
 #### `abs`
 
 ```lua
-abs(x[, y]) --> y = |x|
+vm.abs(x[, y]) --> y = |x|
 ```
 
 Returns the absolute value, the positive real number with the same magnitude as
@@ -431,7 +432,7 @@ the number given.  When used on a vector, acts componentwise.
 #### `sqabs`
 
 ```lua
-sqabs(x[, y]) --> y = |x|^2
+vm.sqabs(x[, y]) --> y = |x|^2
 ```
 
 Returns the square of the absolute value.  When used on a vector, acts
@@ -442,7 +443,7 @@ componentwise
 #### `length`
 
 ```lua
-length(v) --> ||v||
+vm.length(v) --> ||v||
 ```
 
 Returns the length of a vector.  For complex vectors, this uses the absolute
@@ -700,7 +701,9 @@ existence means that `add_complex_complex` doesn't work correctly, but
 vm.utils.unmProxy
 ```
 
-It turns out that the usual `__unm` metamethod gets its argument passed twice to it, which interferes with the out variable setup vornmath uses.  This function is used in the metatables for vornmath types to avoid this problem.
+It turns out that the usual `__unm` metamethod gets its argument passed twice to
+it, which interferes with the out variable setup vornmath uses.  This function
+is used in the metatables for vornmath types to avoid this problem.
 
 #### vectorNilConstructor
 
@@ -717,4 +720,4 @@ vector and this bakery will be used to initialize storage for such a vector.
 vm.utils.matrixNilConstructor(storage,w,h) --> bakery
 ```
 
-Like vectorNilConstructor but for matrices instead.
+Like `vectorNilConstructor` but for matrices instead.
