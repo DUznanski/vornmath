@@ -48,6 +48,7 @@ local SCALAR_PREFIXES = {
 
 vornmath.utils = {}
 vornmath.bakeries = {}
+vornmath.metabakeries = {}
 vornmath.metatables = {}
 vornmath.metameta = {
   __index = function(metatable, thing)
@@ -57,6 +58,20 @@ vornmath.metameta = {
     return function(...) return vornmath.utils.bakeByCall(name, ...)(...) end
   end
 }
+
+vornmath.bakerymeta = {
+  __index = function(bakeries, name)
+    for _,metabakery in pairs(vornmath.metabakeries) do
+      local bakery = metabakery(name)
+      if bakery then
+        vornmath.bakeries[name] = bakery
+        return bakery
+      end
+    end
+  end
+}
+
+setmetatable(vornmath.bakeries, vornmath.bakerymeta)
 
 function vornmath.utils.hasBakery(function_name, types)
   local available_bakeries = vornmath.bakeries[function_name]
@@ -164,16 +179,16 @@ function vornmath.utils.componentWiseReturnOnlys(function_name, arity)
       end
       full_types[arity + 1] = big_type
       local f = vornmath.utils.bake(function_name, full_types)
-      local create = vornmath.utils.bake(big_type, {})
+      local construct = vornmath.utils.bake(big_type, {})
       local letter_glom = table.concat(letters, ', ')
       local code = [[
         local f = select(1, ...)
-        local create = select(2, ...)
+        local construct = select(2, ...)
         return function(]] .. letter_glom .. [[)
-          return f(]] .. letter_glom .. [[, create())
+          return f(]] .. letter_glom .. [[, construct())
         end
       ]]
-      return load(code)(f, create)
+      return load(code)(f, construct)
     end
   }
 end
@@ -267,6 +282,140 @@ do
     return consensus_type
   end
 end
+
+local swizzle_characters_to_indices = {x = 1, y = 2, z = 3, w = 4}
+
+local function swizzleReadBakery(function_name)
+  if function_name:sub(1,11) ~= 'swizzleRead' then return false end -- not a swizzle read
+  local swizzle_string = function_name:sub(12)
+  local target_dimension = #swizzle_string
+  if target_dimension < 1 or target_dimension > 4 then return false end -- can't make vectors this big
+  local min_dimension = 2
+  local swizzle_indices = {}
+  for k = 1,#swizzle_string do
+    local letter = swizzle_string:sub(k,k)
+    local index = swizzle_characters_to_indices[letter]
+    if not index then return false end -- not a legal index
+    table.insert(swizzle_indices, index)
+    min_dimension = math.max(min_dimension, index)
+  end
+  if target_dimension == 1 then
+    -- this is a single index swizzle, I don't have to do anything fancy to get tables out of my upvalues
+    local source_index = swizzle_indices[1]
+    return {
+      {
+        signature_check = function(types)
+          if #types < 2 then return false end
+          local source = vornmath.metatables[types[1]]
+          local target = vornmath.metatables[types[2]]
+          if source.vm_shape ~= 'vector' or source.vm_dim < min_dimension or
+             target.vm_shape ~= 'scalar' or source.vm_storage ~= target.vm_storage
+          then
+            return false
+          end
+          types[3] = nil
+          return true
+        end,
+        create = function(types)
+          local fill = vornmath.utils.bake('fill', {types[2], types[2]})
+          return function(source, target)
+            return fill(target, source[source_index])
+          end
+        end,
+        return_type = function(types) return types[2] end
+      },
+      {
+        signature_check = function(types)
+          if #types < 1 then return false end
+          local source = vornmath.metatables[types[1]]
+          if source.vm_shape ~= 'vector' or source.vm_dim < min_dimension then return false end
+          if not types[2] then types[2] = 'nil' end
+          return types[2] == 'nil'
+        end,
+        create = function(types)
+          local source = vornmath.metatables[types[1]]
+          local construct = vornmath.utils.bake(source.vm_storage, {})
+          local read = vornmath.utils.bake(function_name, {types[1], source.vm_storage})
+          return function(source)
+            return read(source, construct())
+          end
+        end,
+        return_type = function(types) return vornmath.metatables[types[1]].vm_source end
+      }
+    }
+  else
+    return {
+      {
+        signature_check = function(types)
+          if #types < 2 then return false end
+          local source = vornmath.metatables[types[1]]
+          local target = vornmath.metatables[types[2]]
+          if source.vm_shape ~= 'vector' or source.vm_dim < min_dimension or
+             target.vm_shape ~= 'vector' or target.vm_dim ~= target_dimension or
+             source.vm_storage ~= target.vm_storage
+          then
+            return false
+          end
+          types[3] = nil
+          return true
+        end,
+        create = function(types)
+          local storage_type = vornmath.metatables[types[1]].vm_storage
+          local big_fill = vornmath.utils.bake('fill', {types[2], types[2]})
+          local little_fill = vornmath.utils.bake('fill', {storage_type, storage_type})
+          local make_scratch = vornmath.utils.bake(types[2], {})
+          local scratch = make_scratch()
+          local fill_targets = {}
+          for s,t in ipairs(swizzle_indices) do
+            local fill_command = "scratch[" .. s .. "] = little_fill(scratch[" .. s .. "], source[" .. t .. "])"
+            table.insert(fill_targets, fill_command)
+          end
+          local function_text = [[
+            local big_fill = select(1, ...)
+            local little_fill = select(2, ...)
+            local scratch = select(3, ...)
+            return function(source, target)
+              ]] .. table.concat(fill_targets, '\n') .. [[
+              return big_fill(target, scratch)
+            end]]
+          return load(function_text)(big_fill, little_fill, scratch)
+        end,
+        return_type = function(types) return types[2] end
+      },
+      {
+        signature_check = function(types)
+          if #types < 1 then return false end
+          local source = vornmath.metatables[types[1]]
+          if source.vm_shape ~= 'vector' or source.vm_dim < min_dimension then return false end
+          if not types[2] then types[2] = 'nil' end
+          return types[2] == 'nil'
+        end,
+        create = function(types)
+          local source = vornmath.metatables[types[1]]
+          local target_type = vornmath.utils.findTypeByData('vector', target_dimension, source.vm_storage)
+          local construct = vornmath.utils.bake(target_type, {})
+          local read = vornmath.utils.bake(function_name, {types[1], target_type})
+          return function(source)
+            return read(source, construct())
+          end
+        end,
+        return_type = function(types) return vornmath.metatables[types[1]].vm_storage end
+      }
+    }
+  end
+end
+
+table.insert(vornmath.metabakeries, swizzleReadBakery)
+
+function vornmath.utils.swizzleGetter(t, k)
+  local mt = getmetatable(t)
+  if not mt.getters[k] then
+    mt.getters[k] = vornmath.utils.bake('swizzleRead' .. k, {mt.vm_type})
+  end
+  return mt.getters[k](t)
+end
+
+
 
 function vornmath.utils.justNilTypeCheck(types)
   if not types[1] then
@@ -2463,6 +2612,8 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex'}) do
       __unm = vornmath.utils.unmProxy,
       __pow = vornmath.pow,
       __tostring = vornmath.tostring,
+      __index = vornmath.utils.swizzleGetter,
+      getters = {}
     }
     setmetatable(vornmath.metatables[typename], vornmath.metameta)
   end

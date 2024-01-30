@@ -309,4 +309,19 @@ function testMatrixMultiplication()
     lu.assertEquals(b * v, vm.vec2(22,28))
 end
 
+function testSwizzleRead()
+    local a = vm.vec3(1,2,3)
+    local n = 0
+    lu.assertEquals(vm.swizzleReadx(a), 1)
+    lu.assertEquals(a.x, 1)
+    lu.assertEquals(vm.swizzleReady(a), 2)
+    lu.assertEquals(vm.swizzleReadz(a), 3)
+    lu.assertError(function() return vm.swizzlereadw(a) end)
+    lu.assertEquals(vm.swizzleReadxy(a), vm.vec2(1,2))
+    lu.assertEquals(vm.swizzleReadyx(a), vm.vec2(2,1))
+    lu.assertEquals(a.yx, vm.vec2(2,1))
+
+
+    lu.assertEquals(vm.swizzleReadyzx(a,a), vm.vec3(2,3,1)) -- targeting itself should be sane
+end
 os.exit(lu.LuaUnit.run())

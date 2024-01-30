@@ -204,6 +204,21 @@ matrix arguments for which the numeric type is convertible to the vector's type
 and which together provide enough components to completely fill the vector so
 long as the last component of the vector lands in the last argument.
 
+#### Swizzling
+
+In addition to numeric indices, vectors can be indexed via *swizzles*, strings
+of letters that describe a list of indices.
+
+Currently only `xyzw` work, and only for reading.
+
+```lua
+local v = vm.vec3(1,2,3)
+v.x --> 1
+v.yx --> <2,1>
+```
+
+
+
 ### `mat`rices
 
 ```lua
@@ -598,7 +613,7 @@ expand the abilities of a function in common ways.
 #### ComponentWiseReturnOnlys
 
 ```lua
-componentWiseReturnOnlys(function_name, arity) --> bakery
+vm.utils.componentWiseReturnOnlys(function_name, arity) --> bakery
 ```
 
 Most vornmath functions accept an "out variable" that it fills in with the
@@ -614,7 +629,7 @@ things.
 #### twoMixedScalars
 
 ```lua
-twoMixedScalars(function_name) --> bakery
+vm.utils.twoMixedScalars(function_name) --> bakery
 ```
 
 This bakery accepts things such as `add(number, quat)` and adds casts to
