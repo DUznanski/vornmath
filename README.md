@@ -217,7 +217,14 @@ v.x --> 1
 v.yx --> <2,1>
 ```
 
+This functionality can also be accessed as a function, which allows outvars.
+For this, the swizzle string is included as part of the name of the function.
 
+```lua
+local out = vm.vec2()
+swizzleReadx(v) --> 1
+out = swizzleReadyx(v, out) --> out = <2,1>
+```
 
 ### `mat`rices
 
