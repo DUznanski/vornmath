@@ -314,14 +314,32 @@ function testSwizzleRead()
     local n = 0
     lu.assertEquals(vm.swizzleReadx(a), 1)
     lu.assertEquals(a.x, 1)
+    lu.assertEquals(a.b, 3)
     lu.assertEquals(vm.swizzleReady(a), 2)
     lu.assertEquals(vm.swizzleReadz(a), 3)
-    lu.assertError(function() return vm.swizzlereadw(a) end)
+    lu.assertError(function() return vm.swizzleReadw(a) end)
     lu.assertEquals(vm.swizzleReadxy(a), vm.vec2(1,2))
     lu.assertEquals(vm.swizzleReadyx(a), vm.vec2(2,1))
     lu.assertEquals(a.yx, vm.vec2(2,1))
-
+    lu.assertEquals(a.ps, vm.vec2(3,1))
 
     lu.assertEquals(vm.swizzleReadyzx(a,a), vm.vec3(2,3,1)) -- targeting itself should be sane
 end
+
+function testSwizzleWrite()
+    local a = vm.vec3(1,2,3)
+    local b = vm.vec2(4,5)
+    local c = 6
+    vm.swizzleWritex(a, c)
+    lu.assertEquals(a, vm.vec3(6,2,3))
+    vm.swizzleWritezy(a, b)
+    lu.assertEquals(a, vm.vec3(6,5,4))
+    a.x = 10
+    lu.assertEquals(a, vm.vec3(10,5,4))
+    a.gb = vm.vec2(12,15)
+    lu.assertEquals(a, vm.vec3(10,12,15))
+    a.pts = a
+    lu.assertEquals(a, vm.vec3(15,12,10))
+end
+
 os.exit(lu.LuaUnit.run())

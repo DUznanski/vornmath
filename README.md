@@ -209,21 +209,29 @@ long as the last component of the vector lands in the last argument.
 In addition to numeric indices, vectors can be indexed via *swizzles*, strings
 of letters that describe a list of indices.
 
-Currently only `xyzw` work, and only for reading.
+There are three alphabets for swizzling: `xyzw` (best for position),
+`rgba` (best for color), and `stpq` (best for parametric coordinates).  They
+cannot be mixed.
+
+Swizzles can be used for both reading and writing.
 
 ```lua
 local v = vm.vec3(1,2,3)
 v.x --> 1
-v.yx --> <2,1>
+v.bg --> <3,2>
+v.sp = vm.vec2(4,5) --> v = <4,2,5>
 ```
 
 This functionality can also be accessed as a function, which allows outvars.
 For this, the swizzle string is included as part of the name of the function.
 
+These functions always use the `xyzw` alphabet.
+
 ```lua
 local out = vm.vec2()
 swizzleReadx(v) --> 1
 out = swizzleReadyx(v, out) --> out = <2,1>
+swizzleWritezy(v, vm.vec2(6,7)) --> v = <4,7,6>
 ```
 
 ### `mat`rices

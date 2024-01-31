@@ -59,7 +59,7 @@ vornmath.metameta = {
   end
 }
 
-vornmath.bakerymeta = {
+vornmath.utils.bakerymeta = {
   __index = function(bakeries, name)
     for _,metabakery in pairs(vornmath.metabakeries) do
       local bakery = metabakery(name)
@@ -71,7 +71,7 @@ vornmath.bakerymeta = {
   end
 }
 
-setmetatable(vornmath.bakeries, vornmath.bakerymeta)
+setmetatable(vornmath.bakeries, vornmath.utils.bakerymeta)
 
 function vornmath.utils.hasBakery(function_name, types)
   local available_bakeries = vornmath.bakeries[function_name]
@@ -285,6 +285,27 @@ end
 
 local swizzle_characters_to_indices = {x = 1, y = 2, z = 3, w = 4}
 
+local swizzle_alternate_spellings = {
+  {x = 'x', y = 'y', z = 'z', w = 'w'},
+  {r = 'x', g = 'y', b = 'z', a = 'w'},
+  {s = 'x', t = 'y', p = 'z', q = 'w'}
+}
+
+function vornmath.utils.swizzleRespell(swizzle)
+  local exemplar = swizzle:sub(1,1)
+  for _,alphabet in ipairs(swizzle_alternate_spellings) do
+    if alphabet[exemplar] then
+      local letters = {}
+      for i = 1,#swizzle do
+        letters[i] = alphabet[swizzle:sub(i,i)]
+        if not letters[i] then error("Invalid swizzle string: " .. swizzle) end
+      end
+      return table.concat(letters, '')
+    end
+  end
+  error("Invalid swizzle string: " .. swizzle)
+end
+
 local function swizzleReadBakery(function_name)
   if function_name:sub(1,11) ~= 'swizzleRead' then return false end -- not a swizzle read
   local swizzle_string = function_name:sub(12)
@@ -408,14 +429,116 @@ end
 table.insert(vornmath.metabakeries, swizzleReadBakery)
 
 function vornmath.utils.swizzleGetter(t, k)
+  if type(k) ~= 'string' then return nil end
   local mt = getmetatable(t)
   if not mt.getters[k] then
-    mt.getters[k] = vornmath.utils.bake('swizzleRead' .. k, {mt.vm_type})
+    local real_k = vornmath.utils.swizzleRespell(k)
+    mt.getters[k] = vornmath.utils.bake('swizzleRead' .. real_k, {mt.vm_type})
   end
   return mt.getters[k](t)
 end
 
+function vornmath.utils.swizzleWriteBakery(function_name)
+  if function_name:sub(1,12) ~= 'swizzleWrite' then return false end -- not a swizzle read
+  local swizzle_string = function_name:sub(13)
+  local target_dimension = #swizzle_string
+  if target_dimension < 1 or target_dimension > 4 then return false end -- can't do this much
+  local min_dimension = 2
+  local swizzle_indices = {}
+  for k = 1,#swizzle_string do
+    local letter = swizzle_string:sub(k,k)
+    local index = swizzle_characters_to_indices[letter]
+    if not index then return false end -- not a legal index
+    for _,i in ipairs(swizzle_indices) do
+      if i == index then return false end -- can't duplicate indices
+    end
+    table.insert(swizzle_indices, index)
+    min_dimension = math.max(min_dimension, index)
+  end
+  if target_dimension == 1 then
+    -- this is a single index swizzle, I don't have to do anything fancy to get tables out of my upvalues
+    local source_index = swizzle_indices[1]
+    return {
+      {
+        signature_check = function(types)
+          if #types < 2 then return false end
+          local lvalue_meta = vornmath.metatables[types[1]]
+          local rvalue_meta = vornmath.metatables[types[2]]
+          if lvalue_meta.vm_shape ~= 'vector' or lvalue_meta.vm_dim < min_dimension or
+             rvalue_meta.vm_shape ~= 'scalar' or
+             not vornmath.utils.hasBakery('fill', {lvalue_meta.vm_storage, rvalue_meta.vm_storage})
+          then
+            return false
+          end
+          types[3] = nil
+          return true
+        end,
+        create = function(types)
+          local lvalue_meta = vornmath.metatables[types[1]]
+          local rvalue_meta = vornmath.metatables[types[2]]
+          local fill = vornmath.utils.bake('fill', {lvalue_meta.vm_storage, rvalue_meta.vm_storage})
+          return function(lvalue, rvalue)
+            lvalue[source_index] = fill(lvalue[source_index], rvalue)
+          end
+        end,
+        return_type = function(types) return 'nil' end
+      },
+    }
+  else
+    return {
+      {
+        signature_check = function(types)
+          if #types < 2 then return false end
+          local lvalue_meta = vornmath.metatables[types[1]]
+          local rvalue_meta = vornmath.metatables[types[2]]
+          if lvalue_meta.vm_shape ~= 'vector' or lvalue_meta.vm_dim < min_dimension or
+             rvalue_meta.vm_shape ~= 'vector' or rvalue_meta.vm_dim ~= target_dimension or
+             not vornmath.utils.hasBakery('fill', {lvalue_meta.vm_storage, rvalue_meta.vm_storage})
+          then
+            return false
+          end
+          types[3] = nil
+          return true
+        end,
+        create = function(types)
+          local lvalue_meta = vornmath.metatables[types[1]]
+          local rvalue_meta = vornmath.metatables[types[2]]
+          local big_fill = vornmath.utils.bake('fill', {types[2], types[2]})
+          local little_fill = vornmath.utils.bake('fill', {lvalue_meta.vm_storage, rvalue_meta.vm_storage})
+          local make_scratch = vornmath.utils.bake(types[2], {})
+          local scratch = make_scratch()
+          local fill_targets = {}
+          for s,t in ipairs(swizzle_indices) do
+            local fill_command = "lvalue[" .. t .. "] = little_fill(lvalue[" .. t .. "], scratch[" .. s .. "])"
+            table.insert(fill_targets, fill_command)
+          end
+          local function_text = [[
+            local big_fill = select(1, ...)
+            local little_fill = select(2, ...)
+            local scratch = select(3, ...)
+            return function(lvalue, rvalue)
+              scratch = big_fill(scratch, rvalue)
+              ]] .. table.concat(fill_targets, '\n') .. [[
+            end]]
+          return load(function_text)(big_fill, little_fill, scratch)
+        end,
+        return_type = function(types) return 'nil' end
+      },
+    }
+  end
+end
 
+table.insert(vornmath.metabakeries, vornmath.utils.swizzleWriteBakery)
+
+function vornmath.utils.swizzleSetter(t, k, v)
+  local mt = vornmath.utils.getmetatable(t)
+  local vmt = vornmath.utils.getmetatable(v)
+  if not mt.setters[k] then
+    local real_k = vornmath.utils.swizzleRespell(k)
+    mt.setters[k] = vornmath.utils.bake('swizzleWrite' .. real_k, {mt.vm_type, vmt.vm_type})
+  end
+  return mt.setters[k](t, v)
+end
 
 function vornmath.utils.justNilTypeCheck(types)
   if not types[1] then
@@ -2613,7 +2736,9 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex'}) do
       __pow = vornmath.pow,
       __tostring = vornmath.tostring,
       __index = vornmath.utils.swizzleGetter,
-      getters = {}
+      __newindex = vornmath.utils.swizzleSetter,
+      getters = {},
+      setters = {}
     }
     setmetatable(vornmath.metatables[typename], vornmath.metameta)
   end
