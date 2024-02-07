@@ -146,6 +146,15 @@ function testExp()
     lu.assertAlmostEquals(vm.exp(vm.quat(0,0,math.pi/2,0)), vm.quat(0,0,1,0))
 end
 
+function testAbs()
+    local a = vm.vec3(-2,3,-5)
+    local b = vm.cvec2(vm.complex(-3,4), vm.complex(-13))
+    lu.assertEquals(vm.sqabs(a), vm.vec3(4,9,25))
+    lu.assertEquals(vm.abs(a), vm.vec3(2,3,5))
+    lu.assertEquals(vm.sqabs(b), vm.vec2(25,169))
+    lu.assertEquals(vm.abs(b), vm.vec2(5,13))
+end
+
 function testVectorNilConstruction()
     local two = vm.vec2()
     local three = vm.vec3()
