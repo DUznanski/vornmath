@@ -130,6 +130,10 @@ end
 function testAtan()
     lu.assertAlmostEquals(vm.atan(1), math.pi / 4)
     lu.assertAlmostEquals(vm.atan(2,2), math.pi / 4)
+    lu.assertEquals(vm.atan(0), 0)
+    lu.assertEquals(vm.atan(vm.complex(0)), vm.complex(0))
+    lu.assertAlmostEquals(vm.atan(vm.complex(1)), vm.complex(math.pi / 4))
+    lu.assertAlmostEquals(vm.atan(vm.complex(0,2)), vm.complex(math.pi / 2, math.log(3) / 2))
 end
 
 function testLog()
@@ -349,6 +353,63 @@ function testSwizzleWrite()
     lu.assertEquals(a, vm.vec3(10,12,15))
     a.pts = a
     lu.assertEquals(a, vm.vec3(15,12,10))
+end
+
+function testAcos()
+    local i = vm.complex(0,1)
+    lu.assertAlmostEquals(vm.acos(0), math.pi/2)
+    lu.assertAlmostEquals(vm.acos(1), 0)
+    lu.assertAlmostEquals(vm.acos(vm.complex(0)), vm.complex(math.pi/2))
+    lu.assertAlmostEquals(vm.acos(vm.complex(1)), vm.complex(0))
+    lu.assertAlmostEquals(vm.acos(i), vm.complex(math.pi/2, math.log(math.sqrt(2) - 1)))
+end
+
+function testAsin()
+    local i = vm.complex(0,1)
+    lu.assertAlmostEquals(vm.asin(0), 0)
+    lu.assertAlmostEquals(vm.asin(1), math.pi/2)
+    lu.assertAlmostEquals(vm.asin(vm.complex(0)), vm.complex(0))
+    lu.assertAlmostEquals(vm.asin(vm.complex(1)), vm.complex(math.pi/2))
+    lu.assertAlmostEquals(vm.asin(i), vm.complex(0, math.log(math.sqrt(2) + 1)))
+end
+
+function testCeil()
+    lu.assertEquals(vm.ceil(2.5), 3)
+    lu.assertEquals(vm.ceil(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,2,2,5))
+end
+
+function testCos()
+    local e = math.exp(1)
+    lu.assertEquals(vm.cos(0), 1)
+    lu.assertAlmostEquals(vm.cos(vm.complex(0,1)), vm.complex((1+e*e)/(2*e)))
+end
+
+function testCosh()
+    local e = math.exp(1)
+    lu.assertEquals(vm.cosh(0), 1)
+    lu.assertAlmostEquals(vm.cosh(1), (1+e*e)/(2*e))
+    lu.assertAlmostEquals(vm.cosh(vm.complex(0,1)), vm.complex(math.cos(1)))
+end
+
+function testDeg()
+    lu.assertAlmostEquals(vm.deg(vm.vec3(0,1,math.pi)), vm.vec3(0,180 / math.pi, 180))
+end
+
+function testFloor()
+    lu.assertEquals(vm.floor(2.5), 2)
+    lu.assertEquals(vm.floor(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,1,2,4))
+end
+
+function testFrexp()
+    local mantissa, exponent = vm.frexp(vm.vec3(1.5, math.pi, 0.001))
+    lu.assertAlmostEquals(mantissa, vm.vec3(0.75, math.pi / 4, 0.512))
+    lu.assertEquals(exponent, vm.vec3(1, 2, -9))
+end
+
+function testLdexp()
+    local mantissa = vm.vec3(0.75, math.pi / 4, 0.512)
+    local exponent = vm.vec3(1, 2, -9)
+    lu.assertAlmostEquals(vm.ldexp(mantissa, exponent), vm.vec3(1.5, math.pi, 0.001))
 end
 
 os.exit(lu.LuaUnit.run())

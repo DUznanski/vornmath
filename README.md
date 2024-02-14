@@ -104,6 +104,10 @@ it and you'll instead get a fresh object anyway.  **to ward off bad
 consequences of this, only use fill on things not used elsewhere, and when you
 use fill, assign the result of fill to a value!**
 
+`fill` can be used in any way that a constructor can be used: if you have a
+constructor for an object, you can replace that constructor with `fill` and just
+put the object you want to fill in as the first argument.
+
 ```lua
 local a = vm.complex(1,2) -- a is 1+2i
 local b = vm.fill(a,3,4) -- a is now 3+4i, and b is the same object as a. 
@@ -381,6 +385,68 @@ valid Lua code: they're designed to be reasonable to look at.
 
 ### Trigonometric functions
 
+All trigonometric functions act componentwise on vectors.  Angles are always
+assumed to be in radians unless otherwise specified.
+
+#### `rad`
+
+```lua
+vm.rad(angle_in_degrees[, x]) --> x = angle in radians
+```
+
+Converts angle values from degrees to radians.
+
+#### `deg`
+
+```lua
+vm.deg(angle_in_radians[, x]) --> x = angle in degrees
+```
+
+Converts angle values from radians to degrees.
+
+#### `sin`
+
+```lua
+vm.sin(phi[, x]) --> x = sin(phi)
+```
+
+Computes the sine of the given angle.
+
+#### `cos`
+
+```lua
+vm.cos(phi[, x]) --> x = cos(phi)
+```
+
+Computes the cosine of the given angle.
+
+#### `tan`
+
+```lua
+vm.tan(phi[, x]) --> x = tan(phi)
+```
+
+Computes the tangent of the given angle.
+
+#### `asin`
+
+```lua
+vm.asin(phi[, x]) --> x = asin(phi)
+```
+
+Computes the inverse sine or arcsine of the given value.  For real inputs, will
+return an angle between 0 and π.
+
+#### `acos`
+
+```lua
+vm.acos(phi[, x]) --> x = acos(phi)
+```
+
+Computes the inverse cosine or arccosine of the given angle.  For real inputs,
+will return an angle between -π/2 and π/2.
+
+
 #### `atan`
 
 ```lua
@@ -391,10 +457,61 @@ vm.atan(y, x[, phi]) --> phi = angle
 Computes the inverse tangent or arctangent of the given value.  For `numbers`,
 optionally accepts two parameters such that `vm.atan(y, x)` will give the
 correct angle across the whole circle, equivalent to `atan2`.  **the out
-variable is the *third* parameter** for this function because of this.  This
-function acts componentwise on vectors for both `y` and `x`.
+variable is the *third* parameter** for this function because of this.  For real
+inputs, will return an angle between -π/2 and π/2 for the single-input version,
+or an angle between -π and π for the two-input version.
+
+#### `sinh`
+
+```lua
+vm.sinh(x[, y]) --> y = sinh(x)
+```
+
+Computes the hyperbolic sine of the given value.
+
+#### `cosh`
+
+```lua
+vm.cosh(x[, y]) --> y = cosh(x)
+```
+
+Computes the hyperbolic cosine of the given value.
+
+#### `tanh`
+
+```lua
+vm.tanh(x[, y]) --> y = tanh(x)
+```
+
+Computes the hyperbolic tangent of the given value.
+
+#### `asinh`
+
+```lua
+vm.asinh(x[, y]) --> y = asinh(x)
+```
+
+Computes the invers hyperbolic sine of the given value.
+
+#### `acosh`
+
+```lua
+vm.acosh(x[, y]) --> y = acosh(x)
+```
+
+Computes the inverse hyperbolic cosine of the given value.
+
+#### `atanh`
+
+```lua
+vm.atanh(x[, y]) --> y = atanh(x)
+```
+
+Computes the inverse hyperbolic tangent of the given value.
 
 ### Exponential functions
+
+All these functions act componentwise on vectors.
 
 #### `exp`
 
@@ -412,10 +529,39 @@ vm.log(x, b[, y]) --> y = log_b x
 ```
 
 Computes the logarithm.  For single-argument calls, this is the natural log.
-The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.  This
-function acts componentwise on vectors.
+The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.
+
+#### `log10`
+
+```lua
+vm.log10(x[, y]) --> y = ln x
+```
+
+Computes the base-10 logarithm.
+
+#### `sqrt`
+
+```lua
+vm.sqrt(x[, y]) --> y = sqrt(x)
+```
+
+Computes the square root.  Fails if given a negative `number`; given a negative
+real `complex` or `quat` it will produce some positive multiple of *i*.  All
+numbers (other than zero) have two distinct candidates for their square root;
+this function produces the one with a positive real part.
+
+#### `hypot`
+
+```lua
+vm.hypot(x, y[, z]) --> z = sqrt(|x^2| + |y^2|)
+```
+
+Gives the length of the hypotenuse of a right triangle with legs length x and y.
+Uses the absolute value to prevent silly results in complexes and quaternions.
 
 ### Complex and Quaternion functions
+
+All these act componentwise on vectors.
 
 #### `arg`
 
@@ -436,6 +582,8 @@ vm.arg(a+bi+cj+dk[, z]) --> z = a-bi-cj-dk
 Computes the conjugate of a complex number or quaternion, which is the same
 number except with all the signs on the complex parts switched.
 
+This works on matrices as well as vectors.
+
 #### `axisDecompose`
 
 ```lua
@@ -450,6 +598,8 @@ turn be fed back into `vm.quat` to reconstruct the original quaternion.
 
 ### Common functions
 
+All these act componentwise on vectors.
+
 #### `abs`
 
 ```lua
@@ -457,16 +607,90 @@ vm.abs(x[, y]) --> y = |x|
 ```
 
 Returns the absolute value, the positive real number with the same magnitude as
-the number given.  When used on a vector, acts componentwise.
-
+the number given.
 #### `sqabs`
 
 ```lua
 vm.sqabs(x[, y]) --> y = |x|^2
 ```
 
-Returns the square of the absolute value.  When used on a vector, acts
-componentwise
+Returns the square of the absolute value.
+
+#### `copysign`
+
+```lua
+vm.copysign(sign, mag[, result]) --> |result| = |mag|, has same sign as sign
+```
+
+Copys the sign of `sign` onto `mag`.
+
+#### `floor`
+
+```lua
+vm.floor(x[, y]) --> y <= x; y + 1 > x; y is integer
+```
+
+Computes the floor, the highest integer that is at most x.
+
+#### `ceil`
+
+```lua
+vm.ceil(x[, y]) --> y >= x; y - 1 < x; y is integer
+```
+
+Computes the ceiling, the lowest integer that is at least x.
+
+#### `modf`
+
+```lua
+vm.modf(x[, whole, fractional]) --> whole + fractional = x
+```
+
+Separates a number into whole and fractional parts.  Both parts have the *same
+sign* as the original number, so this works as truncating division instead of
+the usual flooring division.
+
+#### `fmod`
+
+```lua
+vm.fmod(x, y[, remainder]) --> remainder of division
+```
+
+Gets the remainder of division such that the quotient is rounded toward zero;
+this gives different results from the usual `%` for negative values.
+
+#### `min`
+
+```lua
+vm.min(x, y[, result]) --> smaller of x and y
+```
+
+Finds the minimum of the two inputs.
+
+#### `max`
+
+```lua
+vm.max(x, y[, result]) --> larger of x and y
+```
+
+Finds the maximum of the two inputs.
+
+#### `frexp`
+
+```lua
+vm.frexp(x[, mantissa, exponent]) --> mantissa * 2 ^ exponent = x
+```
+
+Separates a number into a mantissa with absolute value in 0.5 <= x < 1 and
+an exponent such that mantissa * 2 ^ exponent = x.
+
+#### `ldexp`
+
+```lua
+vm.ldexp(mantissa, exponent, x) --> x = mantissa * 2 ^ exponent
+```
+
+puts a number separated via frexp back together.
 
 ### Vector functions
 
@@ -653,19 +877,16 @@ get it to use the same underlying function as `add(quat, quat)`.
 #### Vector and matrix expanders
 
 ```lua
-vm.utils.componentWiseVector(function_name) --> bakery
-vm.utils.componentWiseVectorNil(function_name) --> bakery
-vm.utils.componentWiseMatrix(function_name) --> bakery
-vm.utils.componentWiseVectorScalar(function_name) --> bakery
-vm.utils.componentWiseScalarVector(function_name) --> bakery
-vm.utils.componentWiseVectorVector(function_name) --> bakery
-vm.utils.componentWiseMatrixScalar(function_name) --> bakery
-vm.utils.componentWiseScalarMatrix(function_name) --> bakery
-vm.utils.componentWiseMatrixMatrix(function_name) --> bakery
+vm.utils.componentWiseExpander(function_name, shapes)
 ```
 
-These bakeries all expand functions that work on numeric types to also work
-componentwise on vectors and matrices.
+Generates a bakery that expands a function to accept the various shapes as
+inputs.  `shapes` is a table of `vm_shape` values, `scalar`, `vector`, and
+`matrix`; `function_name` is the name of the function this bakery is part of.
+This is easiest to explain by example: `add` is already defined so it can add
+two numbers; `vm.utils.componentWiseExpander('add', {'vector', 'number'})` makes
+it so a vector and a number can be added: `vm.vec3(2,3,4) + 5` will now give
+`vm.vec3(7,8,9)`.
 
 #### quatOperatorFromComplex
 
