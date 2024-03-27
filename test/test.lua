@@ -412,4 +412,52 @@ function testLdexp()
     lu.assertAlmostEquals(vm.ldexp(mantissa, exponent), vm.vec3(1.5, math.pi, 0.001))
 end
 
+function testDotProduct()
+    local i = vm.complex(0,1)
+    local a = vm.vec2(2,3)
+    local b = vm.vec2(3,-2)
+    local c = vm.cvec2(1,i)
+    lu.assertEquals(vm.dot(a,b), 0)
+    lu.assertEquals(vm.dot(a,c), vm.complex(2,-3))
+    lu.assertEquals(vm.dot(c,a), vm.complex(2,3))
+end
+
+function testCrossProduct()
+    local a = vm.vec3(1,2,3)
+    local b = vm.vec3(2,3,1)
+    lu.assertEquals(vm.cross(a,b), vm.vec3(-7,5,-1))
+    lu.assertEquals(vm.cross(b,a), vm.vec3(7,-5,1))
+end
+
+function testDeterminant()
+    local a = vm.mat2(1,2,3,4)
+    lu.assertEquals(vm.determinant(a), -2)
+    local b = vm.mat3(1,0,1,-1,0,1,1,1,1)
+    lu.assertEquals(vm.determinant(b), -2)
+    local c = vm.mat4(0,1,8,27,0,1,4,9,0,1,2,3,1,1,1,1)
+    vm.utils.bake('determinant', {'mat4x4'})
+    lu.assertEquals(vm.determinant(c), 12)
+    local d = vm.mat4(1,8,27,64,1,4,9,16,1,2,3,4,1,1,1,1)
+    lu.assertEquals(vm.determinant(d), 12)
+end
+
+function testTranspose()
+    local a = vm.mat2(1,2,3,4)
+    a = vm.transpose(a, a)
+    lu.assertEquals(a, vm.mat2(1,3,2,4))
+    local b = vm.mat3x2(1,2,3,4,5,6)
+    lu.assertEquals(vm.transpose(b), vm.mat2x3(1,3,5,2,4,6))
+end
+
+function testInverse()
+    local a = vm.mat2(1,2,3,4)
+    a = vm.inverse(a, a)
+    lu.assertEquals(a, vm.mat2(-2,1, 1.5, -0.5))
+    local b = vm.mat3(1,4,9,1,2,3,1,1,1)
+    lu.assertEquals(vm.inverse(b), vm.mat3(0.5, -2.5, 3, -1, 4, -3, 0.5, -1.5, 1))
+    local c = vm.mat4(1,8,27,64,1,4,9,16,1,2,3,4,1,1,1,1)
+    local d = vm.mat4(-1, 9, -26, 24, 3, -24, 57, -36, -3, 21, -42, 24, 1, -6, 11, -6) / 6
+    lu.assertAlmostEquals(vm.inverse(c), d)
+end
+
 os.exit(lu.LuaUnit.run())

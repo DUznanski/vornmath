@@ -687,7 +687,7 @@ an exponent such that mantissa * 2 ^ exponent = x.
 #### `ldexp`
 
 ```lua
-vm.ldexp(mantissa, exponent, x) --> x = mantissa * 2 ^ exponent
+vm.ldexp(mantissa, exponent[, x]) --> x = mantissa * 2 ^ exponent
 ```
 
 puts a number separated via frexp back together.
@@ -703,6 +703,114 @@ vm.length(v) --> ||v||
 Returns the length of a vector.  For complex vectors, this uses the absolute
 value, because using straight squaring will cause lengths of some non-zero
 vectors to be 0, which is not desirable.
+
+#### `distance`
+
+```lua
+vm.distance(a,b) --> ||b - a||
+```
+
+Finds the distance between two points.  Equivalent to `vm.length(b-a)`.
+
+#### `dot`
+
+```lua
+vm.dot(a, b[, r]) --> r = a · b
+```
+
+Finds the dot product of the two vectors.  For complex numbers, this takes the
+conjugate of b: without this, a · a could be zero and that's not great.
+
+#### `cross`
+
+```lua
+vm.cross(a, b[, r]) --> r = a × b
+```
+
+Finds the cross product of the two vectors.  Unlike `dot` this doesn't take the
+conjugate because it turns out fine.
+
+#### `normalize`
+
+```lua
+vm.normalize(a[, r]) --> r = a / ||a||
+```
+
+Computes a vector in the same direction as the input, but with length 1.
+
+#### `faceForward`
+
+```lua
+vm.faceForward(n, i, nref[, r]) --> r = -n * sign(dot(i, nref))
+```
+
+Gives -n or n depending on whether nref is in the same or opposite direction as
+i.
+
+#### `reflect`
+
+```lua
+vm.reflect(i, n[, r]) --> r = i - 2 * dot(n, i) * n
+```
+
+gives the direction of the resultant ray after reflecting an incident ray with
+direction `i` off a surface with normal `n`.  `i` and `n` must both be unit
+vectors for this to work correctly.
+
+#### `refract`
+
+```lua
+vm.refract(i, n, eta[, r]) --> r = ...complicated
+```
+
+gives the direction of the resultant ray after refracting an incident ray with
+direction `i` through a surface with normal `n` and ratio of indices of
+refraction `eta`.  if `eta > 1`, it is possible for the result to be total
+internal reflection: in this case, the function returns a zero vector.
+
+### Matrix functions
+
+#### `matrixCompMult`
+
+```lua
+vm.matrixCompMult(a, b[, r]) --> r[i][j] = a[i][j] * b[i][j]
+```
+
+Componentwise multiplication of two matrices.  If you want linear algebraic
+multiplication, use `mul` or the `*` operator.
+
+#### `outerProduct`
+
+```lua
+vm.outerProduct(col, row[, r]) --> r[i][j] = col[i] * row[j]
+```
+
+Linear algebraic product of a column vector `col` and a row vector `row`,
+producing a matrix.
+
+#### `transpose`
+
+```lua
+vm.transpose(m[, r]) --> r = mᵀ
+```
+
+Transposes the matrix: swaps the meaning of rows and columns.
+
+#### `determinant`
+
+```lua
+vm.determinant(m[, r]) --> r = |m|
+```
+
+Calculates the determinant of the matrix.
+
+#### `inverse`
+
+```lua
+vm.inverse(m[, r]) --> r = m⁻¹
+```
+
+Calculates the inverse of the matrix.
 
 ## Technical Details
 
@@ -734,12 +842,12 @@ which accepts a table of type names:
 Let's look at multiplication.  `mul` has, including filling and return-only
 versions, 593 distinct valid signatures, in a dozen or so patterns, all of which
 have to actually work.  This is already too many to have each one represented
-directly in the source file - I know, because I tried it:  it would be about the
-same size as the vornmath library is as a whole right now.  Worse still would be
-`fill`, which has tens of millions of signatures, almost none of which will ever
-actually get used, and I'm not about to try to judge which ones are actually
-sane.  So these have to get generated at some point at runtime, and as late as
-possible is the best choice.
+directly in the source file - I know, because I tried it:  it would be about
+half the size as the vornmath library is as a whole right now.  Worse still
+would be `fill`, which has tens of millions of signatures, almost none of which
+will ever actually get used, and I'm not about to try to judge which ones are
+actually sane.  So these have to get generated at some point at runtime, and as
+late as possible is the best choice.
 
 Meanwhile, the work required to calculate which function to call in the first
 place (and indeed whether that is a usable function!) is quite complicated.  By
@@ -795,7 +903,7 @@ they do not get attached to the types, but see
 
 ### Utility functions
 
-### type
+#### type
 
 ```lua
 vm.utils.type(obj) --> typename
@@ -803,7 +911,7 @@ vm.utils.type(obj) --> typename
 
 Returns the name of the vornmath type (if it exists) or the lua type (if not).
 
-### getmetatable
+#### getmetatable
 
 ```lua
 vm.utils.getmetatable(obj) --> metatable
@@ -874,7 +982,7 @@ vm.utils.twoMixedScalars(function_name) --> bakery
 This bakery accepts things such as `add(number, quat)` and adds casts to
 get it to use the same underlying function as `add(quat, quat)`.
 
-#### Vector and matrix expanders
+#### componentWiseExpander
 
 ```lua
 vm.utils.componentWiseExpander(function_name, shapes)

@@ -35,7 +35,7 @@ local unpack = unpack or table.unpack
 -- these are used to name generic parameters for functions that accept a different
 -- number of arguments based on type
 
-local LETTERS = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'}
+local LETTERS = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q'}
 
 -- prefixes for types that use different storage types
 
@@ -126,7 +126,6 @@ function vornmath.utils.bakeByCall(name, ...)
   return vornmath.utils.bake(name, types)
 end
 
-
 function vornmath.utils.findTypeByData(shape, dim, storage)
   if shape == 'scalar' then dim = 1 end
   for typename, meta in pairs(vornmath.metatables) do
@@ -144,6 +143,14 @@ function vornmath.utils.findTypeByData(shape, dim, storage)
       end
     end
   end
+end
+
+function vornmath.utils.returnType(function_name, types)
+  local bakery = vornmath.utils.hasBakery(function_name, types)
+  if bakery == nil then error("unknown vornmath function `" .. function_name .. "`.") end
+  if bakery == false then error('vornmath function `' .. function_name .. '` does not accept types `' .. table.concat(types, ', ') .. '`.') end
+  ---@diagnostic disable-next-line: need-check-nil, undefined-field
+  return bakery.return_type(types)
 end
 
 function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_number)
@@ -189,6 +196,9 @@ function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_num
         end
       ]]
       return load(code)(f, construct)
+    end,
+    return_type = function(types)
+      return vornmath.utils.componentWiseConsensusType(types, force_number)
     end
   }
 end
@@ -1650,7 +1660,8 @@ vornmath.bakeries.mul = {
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
       local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
       if vornmath.utils.hasBakery('mul', {types[1], types[2], result_type}) then
-        types[3] = nil
+        types[3] = 'nil'
+        types[4] = nil
         return true
       end
     end,
@@ -1690,7 +1701,8 @@ vornmath.bakeries.mul = {
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
       local result_type = vornmath.utils.findTypeByData('vector', right.vm_dim[1], consensus_storage)
       if vornmath.utils.hasBakery('mul', {types[1], types[2], result_type}) then
-        types[3] = nil
+        types[3] = 'nil'
+        types[4] = nil
         return true
       end
     end,
@@ -1730,7 +1742,8 @@ vornmath.bakeries.mul = {
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
       local result_type = vornmath.utils.findTypeByData('vector', left.vm_dim[2], consensus_storage)
       if vornmath.utils.hasBakery('mul', {types[1], types[2], result_type}) then
-        types[3] = nil
+        types[3] = 'nil'
+        types[4] = nil
         return true
       end
     end,
@@ -3288,6 +3301,684 @@ vornmath.bakeries.length = {
     end,
     return_type = function(types) return 'number' end
   }
+}
+
+vornmath.bakeries.distance = {
+  {
+    signature_check = function(types)
+      if vornmath.utils.hasBakery('sub', {types[1], types[2]}) and
+         vornmath.utils.hasBakery('length', {vornmath.utils.componentWiseConsensusType(types)}) then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local composite_type = vornmath.utils.returnType('sub', types)
+      local sub = vornmath.utils.bake('sub', {types[1], types[2], composite_type})
+      local length = vornmath.utils.bake('length', {composite_type})
+      local scratch = vornmath[composite_type]()
+      return function(a, b)
+        scratch = sub(a, b, scratch)
+        return length(scratch)
+      end
+    end
+  }
+}
+
+vornmath.bakeries.dot = {
+  { -- dot(vec, vec, out_type)
+    signature_check = function(types)
+      if #types < 3 then return false end
+      -- can I multiply these vectors together?
+      if not vornmath.utils.hasBakery('mul', {types[1], types[2]}) then return false end
+      local mul_result = vornmath.utils.returnType('mul', {types[1], types[2]})
+      local mul_meta = vornmath.metatables[mul_result]
+      if mul_meta.vm_storage ~= types[3] then return false end
+      types[4] = nil
+      return true
+    end,
+    create = function(types)
+      local mul_result = vornmath.utils.returnType('mul', {types[1], types[2]})
+      local mul = vornmath.utils.bake('mul', {types[1], types[2], mul_result})
+      local add = vornmath.utils.bake('add', {types[3], types[3], types[3]})
+      local d = vornmath.metatables[types[1]].vm_dim
+      local fill = vornmath.utils.bake('fill', {types[3]})
+      local conjscratch = vornmath[types[2]]()
+      local scratch = vornmath[mul_result]()
+      return function(a, b, r)
+        r = fill(r)
+        conjscratch = vornmath.conj(b, conjscratch)
+        scratch = mul(a, conjscratch, scratch)
+        for i = 1,d do
+          r = add(r, scratch[i], r)
+        end
+        return r
+      end
+    end,
+    return_type = function(types) return types[3] end
+  },
+  { -- return-onlys
+    signature_check = function(types)
+      if #types < 2 then return false end
+      for i = 3,#types do
+        if types[i] ~= 'nil' and types[i] ~= nil then return false end
+      end
+      if not vornmath.utils.hasBakery('mul', {types[1], types[2]}) then return false end
+      local mul_result = vornmath.utils.returnType('mul', {types[1], types[2]})
+      local mul_meta = vornmath.metatables[mul_result]
+      if not vornmath.utils.hasBakery('dot', {types[1], types[2], mul_meta.vm_storage}) then return false end
+      types[3] = 'nil'
+      types[4] = nil
+      return true
+    end,
+    create = function(types)
+      local mul_result = vornmath.utils.returnType('mul', {types[1], types[2]})
+      local out_type = vornmath.metatables[mul_result].vm_storage
+      local dot = vornmath.utils.bake('dot', {types[1], types[2], out_type})
+      local construct = vornmath.utils.bake(out_type, {})
+      return function(a,b)
+        local r = construct()
+        return dot(a,b,r)
+      end
+    end,
+    return_type = function(types)
+      local mul_result = vornmath.utils.returnType('mul', {types[1], types[2]})
+      return vornmath.metatables[mul_result].vm_storage
+    end
+  }
+}
+
+vornmath.bakeries.cross = {
+  {
+    signature_check = function(types)
+      if #types < 3 then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      if first_meta.vm_shape ~= 'vector' or first_meta.vm_dim ~= 3 or
+          second_meta.vm_shape ~= 'vector' or second_meta.vm_dim ~= 3 or
+          not vornmath.utils.hasBakery('mul', types) then -- cross product is really a sum of multiplications of swizzles
+        return false
+      end
+      types[4] = nil
+      return true
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      local third_meta = vornmath.metatables[types[3]]
+      local final_type = third_meta.vm_storage
+      local mul = vornmath.utils.bake('mul', {first_meta.vm_storage, second_meta.vm_storage, final_type})
+      local sub = vornmath.utils.bake('sub', {final_type, final_type, final_type})
+      local fill = vornmath.utils.bake('fill', {types[3], types[3]})
+      local scratch_vec = vornmath[types[3]]()
+      local scratch_thing = vornmath[final_type]()
+      return function(a, b, r)
+        scratch_vec[1] = mul(a[2], b[3], scratch_vec[1])
+        scratch_thing  = mul(a[3], b[2], scratch_thing)
+        scratch_vec[1] = sub(scratch_vec[1], scratch_thing, scratch_vec[1])
+        scratch_vec[2] = mul(a[3], b[1], scratch_vec[2])
+        scratch_thing  = mul(a[1], b[3], scratch_thing)
+        scratch_vec[2] = sub(scratch_vec[2], scratch_thing, scratch_vec[2])
+        scratch_vec[3] = mul(a[1], b[2], scratch_vec[3])
+        scratch_thing  = mul(a[2], b[1], scratch_thing)
+        scratch_vec[3] = sub(scratch_vec[3], scratch_thing, scratch_vec[3])
+        return fill(r, scratch_vec)
+      end
+    end
+  },
+  vornmath.utils.componentWiseReturnOnlys('cross',2)
+}
+
+vornmath.bakeries.normalize = {
+  {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if types[1] ~= types[2] then return false end
+      local first_meta = vornmath.metatables(types[1])
+      if first_meta.vm_shape ~= 'vector' then return false end
+      if vornmath.utils.hasBakery('length', {types[1]}) then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local len = vornmath.utils.bake('length', {types[1]})
+      local div = vornmath.utils.bake('div', {types[1], 'number', types[2]})
+      return function(a, r)
+        local l = len(a)
+        return div(a, l, r)
+      end
+    end
+  },
+  vornmath.utils.componentWiseReturnOnlys('normalize', 1)
+}
+
+vornmath.bakeries.faceForward = {
+  {
+    signature_check = function(types)
+      if #types < 4 then return false end
+      if types[1] ~= types[2] or types[1] ~= types[3] or types[1] ~= types[4] then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      if first_meta.vm_shape ~= 'vector' or first_meta.vm_storage ~= 'number' then
+        return false
+      end
+      types[4] = nil
+      return true
+    end,
+    create = function(types)
+      local dot = vornmath.utils.bake('dot', {types[1], types[1]})
+      local unm = vornmath.utils.bake('unm', {types[1], types[1]})
+      local fill = vornmath.utils.bake('fill', {types[1], types[1]})
+      return function(n, i, nref, r)
+        if dot(nref, i) >= 0 then
+          return unm(n,r)
+        else
+          return fill(r,n)
+        end
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('faceForward', 3)
+}
+
+vornmath.bakeries.reflect = {
+  {
+    signature_check = function(types)
+      if #types < 3 then return false end
+      if vornmath.utils.hasBakery('dot', {types[2], types[1]}) and
+         vornmath.utils.hasBakery('add', types) then
+        return true
+      end
+    end,
+    create = function(types)
+      local dot_result_type = vornmath.utils.returnType('dot', {types[2], types[1]})
+      local dot = vornmath.utils.bake('dot', {types[2], types[1], dot_result_type})
+      local mul_result_type = vornmath.utils.returnType('mul', {dot_result_type, types[2]})
+      local mul = vornmath.utils.bake('mul', {dot_result_type, types[2], mul_result_type})
+      local scalar_mul = vornmath.utils.bake('mul', {'number', dot_result_type, dot_result_type})
+      local sub = vornmath.utils.bake('sub', {types[1], mul_result_type, types[3]})
+      local scratch = vornmath[dot_result_type]()
+      local scratch_vec = vornmath[mul_result_type]()
+      return function(i, n, r)
+        scratch = dot(n, i, scratch)
+        scratch = scalar_mul(2, scratch, scratch)
+        scratch_vec = mul(scratch, n, scratch_vec)
+        return sub(i, scratch_vec, r)
+      end
+    end,
+    return_type = function(types) return types[3] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('reflect', 2)
+}
+
+vornmath.bakeries.refract = {
+  {
+    signature_check = function(types)
+      if types[1] ~= types[2] or types[1] ~= types[4] then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'vector' and meta.vm_storage == 'number' and types[3] == 'number' then
+        types[5] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      -- okay so I don't actually care about non-number ones
+      -- so I can be a little bit less picky about targeting complexes
+      -- so standard builtin arithmetic ops will do nicely for all that work
+      local dot = vornmath.utils.bake('dot', {types[1], types[2]})
+      local sqrt = math.sqrt
+      local emptyfill = vornmath.utils.bake('fill', {types[4]})
+      local mul = vornmath.utils.bake('mul', {types[1], 'number', types[1]})
+      local sub = vornmath.utils.bake('sub', {types[1], types[1], types[1]})
+      local scratch = vornmath[types[4]]()
+      return function(i, n, eta, r)
+        local cosine = dot(n, i)
+        local k = 1 - eta * eta * (1 - cosine * cosine)
+        if k < 0 then return emptyfill(r) end
+        local n_influence = eta * cosine + sqrt(k)
+        scratch = mul(i, eta, scratch)
+        r = mul(n, n_influence, r)
+        return sub(scratch, r, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('refract', 3)
+}
+
+-- matrix functions
+
+vornmath.bakeries.matrixCompMult = {
+  vornmath.utils.componentWiseExpander('mul', {'matrix', 'matrix'}),
+  vornmath.utils.componentWiseReturnOnlys('matrixCompMult', 2)
+}
+
+vornmath.bakeries.outerProduct = {
+  { -- outerProduct(vector, vector, matrix)}
+    signature_check = function(types)
+      if #types < 3 then return false end
+      local left = vornmath.metatables[types[1]]
+      local right = vornmath.metatables[types[2]]
+      local result = vornmath.metatables[types[3]]
+      if (left.vm_shape ~= 'vector' or
+        right.vm_shape ~= 'vector' or
+        result.vm_shape ~= 'matrix' or
+        left.vm_dim ~= result.vm_dim[2] or
+        result.vm_dim[1] ~= right.vm_dim or
+        not vornmath.utils.hasBakery('mul', {left.vm_storage, right.vm_storage, result.vm_storage})
+        or not vornmath.utils.hasBakery('add', {result.vm_storage, result.vm_storage, result.vm_storage})
+      )
+      then
+        return false
+      end
+      types[4] = nil
+      return true
+    end,
+    create = function(types)
+      local left_type = vornmath.metatables[types[1]]
+      local right_type = vornmath.metatables[types[2]]
+      local result_type = vornmath.metatables[types[3]]
+      local width = result_type.vm_dim[1]
+      local height = result_type.vm_dim[2]
+      local mul = vornmath.utils.bake('mul', {left_type.vm_storage, right_type.vm_storage, result_type.vm_storage})
+      local fill = vornmath.utils.bake('fill', {types[3], types[3]})
+      return function(left, right, result)
+        for x = 1, width do
+          for y = 1, height do
+            result[x][y] = mul(left[y], right[x], result[x][y])
+          end
+        end
+        return result
+      end
+    end,
+    return_type = function(types) return types[3] end
+  },
+  { -- outerProduct(vector, vector)
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if #types > 2 then
+        -- only nils after
+        for i, typename in ipairs(types) do
+          if i > 2 and typename ~= 'nil' then return false end
+        end
+      end
+      local left = vornmath.metatables[types[1]]
+      local right = vornmath.metatables[types[2]]
+      if left.vm_shape ~= 'vector' or right.vm_shape ~= 'vector' then
+        return false
+      end
+      local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
+      local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim, left.vm_dim}, consensus_storage)
+      if vornmath.utils.hasBakery('outerProduct', {types[1], types[2], result_type}) then
+        types[3] = 'nil'
+        types[4] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local left = vornmath.metatables[types[1]]
+      local right = vornmath.metatables[types[2]]
+      local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
+      local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
+      local make = vornmath.utils.bake(result_type, {})
+      local action = vornmath.utils.bake('mul', {types[1], types[2], result_type})
+      return function(a, b)
+        local result = make()
+        return action(a, b, result)
+      end
+    end,
+    return_type = function(types)
+      local left = vornmath.metatables[types[1]]
+      local right = vornmath.metatables[types[2]]
+      local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
+      return vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
+    end
+  },
+
+}
+
+vornmath.bakeries.transpose = {
+  { -- transpose(mataxb, matbxa)
+    signature_check = function(types)
+      if #types < 2 then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      local second_meta = vornmath.metatables[types[2]]
+      if first_meta.vm_shape == 'matrix' and
+         second_meta.vm_shape == 'matrix' and
+         first_meta.vm_storage == second_meta.vm_storage and
+         first_meta.vm_dim[1] == second_meta.vm_dim[2] and
+         first_meta.vm_dim[2] == second_meta.vm_dim[1] then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local fill = vornmath.utils.bake('fill', {meta.vm_storage, meta.vm_storage})
+      local clone = vornmath.utils.bake('fill', {types[1], types[1]})
+      local cols = meta.vm_dim[1]
+      local rows = meta.vm_dim[2]
+      local scratch = vornmath[types[1]]()
+      return function(m, target)
+        scratch = clone(scratch, m) -- do thiscloning so transposing a square matrix onto itself is safe
+        for c = 1,cols do
+          for r = 1,rows do
+            target[r][c] = fill(target[r][c], scratch[c][r])
+          end
+        end
+        return target
+      end
+    end,
+    return_type = function(types) return types[2] end
+  },
+  { -- return onlys
+    signature_check = function(types)
+      if #types < 1 then return false end
+      if types[2] and types[2] ~= 'nil' then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape ~= 'matrix' then return false end
+      local second_dim = {meta.vm_dim[2], meta.vm_dim[1]}
+      local second_type = vornmath.utils.findTypeByData('matrix', second_dim, meta.vm_storage)
+      if vornmath.utils.hasBakery('transpose', {types[1], second_type}) then
+        types[2] = 'nil'
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local second_dim = {meta.vm_dim[2], meta.vm_dim[1]}
+      local second_type = vornmath.utils.findTypeByData('matrix', second_dim, meta.vm_storage)
+      local f = vornmath.utils.bake('transpose', {types[1], second_type})
+      local construct = vornmath.utils.bake(second_type, {})
+      return function(m)
+        local result = construct()
+        return f(m, result)
+      end
+    end,
+    return_type = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local second_dim = {meta.vm_dim[2], meta.vm_dim[1]}
+      return vornmath.utils.findTypeByData('matrix', second_dim, meta.vm_storage)
+    end
+  }
+}
+
+vornmath.bakeries.determinant = {
+  { -- determinant(mat2x2, scalar)
+    signature_check = function(types)
+      if #types < 2 then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and
+         meta.vm_dim[1] == 2 and
+         meta.vm_dim[2] == 2 and
+         meta.vm_storage == types[2] then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local mul = vornmath.utils.bake('mul', {types[2], types[2], types[2]})
+      local sub = vornmath.utils.bake('sub', {types[2], types[2], types[2]})
+      local scratch = vornmath[types[2]]()
+      return function(m, r)
+        r = mul(m[1][1], m[2][2], r)
+        scratch = mul(m[1][2], m[2][1], scratch)
+        return sub(r, scratch, r)
+      end
+    end,
+    return_type = function(types) return types[2] end
+  },
+  { -- determinant(mat3x3, scalar)
+    signature_check = function(types)
+      if #types < 2 then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and
+         meta.vm_dim[1] == 3 and
+         meta.vm_dim[2] == 3 and
+         meta.vm_storage == types[2] then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local fill = vornmath.utils.bake('fill', {types[2]})
+      local mul = vornmath.utils.bake('mul', {types[2], types[2], types[2]})
+      local add = vornmath.utils.bake('add', {types[2], types[2], types[2]})
+      local sub = vornmath.utils.bake('sub', {types[2], types[2], types[2]})
+      local scratch = vornmath[types[2]]()
+      return function(m, r)
+        r = fill(r)
+        scratch = mul(m[1][1], m[2][2], scratch)
+        scratch = mul(scratch, m[3][3], scratch)
+        r = add(r, scratch, r)
+        scratch = mul(m[1][2], m[2][3], scratch)
+        scratch = mul(scratch, m[3][1], scratch)
+        r = add(r, scratch, r)
+        scratch = mul(m[1][3], m[2][1], scratch)
+        scratch = mul(scratch, m[3][2], scratch)
+        r = add(r, scratch, r)
+        scratch = mul(m[1][1], m[2][3], scratch)
+        scratch = mul(scratch, m[3][2], scratch)
+        r = sub(r, scratch, r)
+        scratch = mul(m[1][2], m[2][1], scratch)
+        scratch = mul(scratch, m[3][3], scratch)
+        r = sub(r, scratch, r)
+        scratch = mul(m[1][3], m[2][2], scratch)
+        scratch = mul(scratch, m[3][1], scratch)
+        r = sub(r, scratch, r)
+        return r
+      end
+    end,
+    return_type = function(types) return types[2] end
+  },
+  { -- determinant(mat4x4, scalar)
+    signature_check = function(types)
+      if #types < 2 then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and
+         meta.vm_dim[1] == 4 and
+         meta.vm_dim[2] == 4 and
+         meta.vm_storage == types[2] then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local fill = vornmath.utils.bake('fill', {types[2], types[2]})
+      local mul = vornmath.utils.bake('mul', {types[2], types[2], types[2]})
+      local add = vornmath.utils.bake('add', {types[2], types[2], types[2]})
+      local sub = vornmath.utils.bake('sub', {types[2], types[2], types[2]})
+      local scratch = vornmath[types[2]]()
+      local scratch_2 = vornmath[types[2]]()
+      local scratch_3 = vornmath[types[2]]()
+      local scratch_4 = vornmath[types[2]]()
+      local scratch_5 = vornmath[types[2]]()
+      local scratch_6 = vornmath[types[2]]()
+
+      local low_12 = vornmath[types[2]]()
+      local low_13 = vornmath[types[2]]()
+      local low_14 = vornmath[types[2]]()
+      local low_23 = vornmath[types[2]]()
+      local low_24 = vornmath[types[2]]()
+      local low_34 = vornmath[types[2]]()
+      return function(m, det)
+        -- cover the bottom rows with pairs
+        low_34 = sub(mul(m[3][3], m[4][4], scratch),  mul(m[4][3], m[3][4], scratch_2), low_34)
+        low_24 = sub(mul(m[2][3], m[4][4], scratch),  mul(m[4][3], m[2][4], scratch_2), low_24)
+        low_14 = sub(mul(m[1][3], m[4][4], scratch),  mul(m[4][3], m[1][4], scratch_2), low_14)
+        low_23 = sub(mul(m[2][3], m[3][4], scratch),  mul(m[3][3], m[2][4], scratch_2), low_23)
+        low_13 = sub(mul(m[1][3], m[3][4], scratch),  mul(m[3][3], m[1][4], scratch_2), low_13)
+        low_12 = sub(mul(m[1][3], m[2][4], scratch),  mul(m[2][3], m[1][4], scratch_2), low_12)
+        scratch = mul(m[1][1], add(sub(mul(m[2][2], low_34, scratch_2), mul(m[3][2], low_24, scratch_3), scratch_4), mul(m[4][2], low_23, scratch_5), scratch_6), scratch)
+        det = fill(det, scratch)
+        scratch = mul(m[2][1], add(sub(mul(m[1][2], low_34, scratch_2), mul(m[3][2], low_14, scratch_3), scratch_4), mul(m[4][2], low_13, scratch_5), scratch_6), scratch)
+        det = sub(det, scratch, det)
+
+        scratch = mul(m[3][1], add(sub(mul(m[1][2], low_24, scratch_2), mul(m[2][2], low_14, scratch_3), scratch_4), mul(m[4][2], low_12, scratch_5), scratch_6), scratch)
+        det = add(det, scratch, det)
+
+        scratch = mul(m[4][1], add(sub(mul(m[1][2], low_23, scratch_2), mul(m[2][2], low_13, scratch_3), scratch_4), mul(m[3][2], low_12, scratch_5), scratch_6), scratch)
+        return sub(det, scratch, det)
+      end
+    end,
+    return_type = function(types) return types[2] end
+  },
+  { -- return-onlys
+    signature_check = function(types)
+      if #types < 1 or types[2] and types[2] ~= 'nil' then return false end
+      local meta = vornmath.metatables[types[1]]
+      if vornmath.utils.hasBakery('determinant', {types[1], meta.vm_storage}) then
+          types[2] = 'nil'
+          types[3] = nil
+          return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local f = vornmath.utils.bake('determinant', {types[1], meta.vm_storage})
+      local construct = vornmath.utils.bake(meta.vm_storage, {})
+      return function(m)
+        local r = construct()
+        return f(m, r)
+      end
+    end
+  }
+}
+
+vornmath.bakeries.inverse = {
+  { -- inverse(mat2x2, mat2x2)
+    signature_check = function(types)
+      if #types < 2 or types[1] ~= types[2] then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and meta.vm_dim[1] == 2 and meta.vm_dim[2] == 2 then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local det = vornmath.utils.bake('determinant', {types[1], meta.vm_storage})
+      local div = vornmath.utils.bake('div', {types[1], meta.vm_storage, types[1]})
+      local unm = vornmath.utils.bake('unm', {meta.vm_storage, meta.vm_storage})
+      local fill = vornmath.utils.bake('fill', {meta.vm_storage, meta.vm_storage})
+      local scratch = vornmath[types[1]]()
+      local d = vornmath[meta.vm_storage]()
+      return function(m, r)
+        d = det(m, d)
+        scratch[1][1] = fill(scratch[1][1], m[2][2])
+        scratch[1][2] = unm(m[1][2], scratch[1][2])
+        scratch[2][1] = unm(m[2][1], scratch[2][1])
+        scratch[2][2] = fill(scratch[2][2], m[1][1])
+        return div(scratch, d, r)
+      end
+    end
+  },
+  { -- inverse(mat3x3, mat3x3)
+    signature_check = function(types)
+      if #types < 2 or types[1] ~= types[2] then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and meta.vm_dim[1] == 3 and meta.vm_dim[2] == 3 then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local det = vornmath.utils.bake('determinant', {types[1], meta.vm_storage})
+      local div = vornmath.utils.bake('div', {types[1], meta.vm_storage, types[1]})
+      local mul = vornmath.utils.bake('mul', {meta.vm_storage, meta.vm_storage, meta.vm_storage})
+      local sub = vornmath.utils.bake('sub', {meta.vm_storage, meta.vm_storage, meta.vm_storage})
+      local scratch = vornmath[types[1]]()
+      local scratch_num = vornmath[meta.vm_storage]()
+      local scratch_num_2 = vornmath[meta.vm_storage]()
+      local d = vornmath[meta.vm_storage]()
+      return function(m, r)
+        d = det(m, d)
+        scratch[1][1] = sub(mul(m[2][2], m[3][3], scratch_num),  mul(m[2][3], m[3][2], scratch_num_2), scratch[1][1])
+        scratch[1][2] = sub(mul(m[3][2], m[1][3], scratch_num),  mul(m[3][3], m[1][2], scratch_num_2), scratch[1][2])
+        scratch[1][3] = sub(mul(m[1][2], m[2][3], scratch_num),  mul(m[1][3], m[2][2], scratch_num_2), scratch[1][3])
+        scratch[2][1] = sub(mul(m[2][3], m[3][1], scratch_num),  mul(m[2][1], m[3][3], scratch_num_2), scratch[2][1])
+        scratch[2][2] = sub(mul(m[3][3], m[1][1], scratch_num),  mul(m[3][1], m[1][3], scratch_num_2), scratch[2][2])
+        scratch[2][3] = sub(mul(m[1][3], m[2][1], scratch_num),  mul(m[1][1], m[2][3], scratch_num_2), scratch[2][3])
+        scratch[3][1] = sub(mul(m[2][1], m[3][2], scratch_num),  mul(m[2][2], m[3][1], scratch_num_2), scratch[3][1])
+        scratch[3][2] = sub(mul(m[3][1], m[1][2], scratch_num),  mul(m[3][2], m[1][1], scratch_num_2), scratch[3][2])
+        scratch[3][3] = sub(mul(m[1][1], m[2][2], scratch_num),  mul(m[1][2], m[2][1], scratch_num_2), scratch[3][3])
+        return div(scratch, d, r)
+      end
+    end
+  },
+  { -- inverse(mat3x3, mat3x3)
+    signature_check = function(types)
+      if #types < 2 or types[1] ~= types[2] then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'matrix' and meta.vm_dim[1] == 4 and meta.vm_dim[2] == 4 then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local meta = vornmath.metatables[types[1]]
+      local det = vornmath.utils.bake('determinant', {types[1], meta.vm_storage})
+      local div = vornmath.utils.bake('div', {types[1], meta.vm_storage, types[1]})
+      local mul = vornmath.utils.bake('mul', {meta.vm_storage, meta.vm_storage, meta.vm_storage})
+      local sub = vornmath.utils.bake('sub', {meta.vm_storage, meta.vm_storage, meta.vm_storage})
+      local add = vornmath.utils.bake('add', {meta.vm_storage, meta.vm_storage, meta.vm_storage})
+      local s = vornmath[types[1]]()
+      local make = vornmath[meta.vm_storage]
+      local s1, s2, s3, s4 = make(), make(), make(), make()
+      local lo12, lo13, lo14 = make(), make(), make()
+      local lo23, lo24, lo34 = make(), make(), make()
+      local hi12, hi13, hi14 = make(), make(), make()
+      local hi23, hi24, hi34 = make(), make(), make()
+      local d = make()
+      return function(m, r)
+        d = det(m, d)
+        lo12 = sub(mul(m[1][3], m[2][4], s1), mul(m[2][3], m[1][4], s2), lo12)
+        lo13 = sub(mul(m[1][3], m[3][4], s1), mul(m[3][3], m[1][4], s2), lo13)
+        lo14 = sub(mul(m[1][3], m[4][4], s1), mul(m[4][3], m[1][4], s2), lo14)
+
+        lo23 = sub(mul(m[2][3], m[3][4], s1), mul(m[3][3], m[2][4], s2), lo23)
+        lo24 = sub(mul(m[2][3], m[4][4], s1), mul(m[4][3], m[2][4], s2), lo24)
+        lo34 = sub(mul(m[3][3], m[4][4], s1), mul(m[4][3], m[3][4], s2), lo34)
+
+        hi12 = sub(mul(m[1][1], m[2][2], s1), mul(m[2][1], m[1][2], s2), hi12)
+        hi13 = sub(mul(m[1][1], m[3][2], s1), mul(m[3][1], m[1][2], s2), hi13)
+        hi14 = sub(mul(m[1][1], m[4][2], s1), mul(m[4][1], m[1][2], s2), hi14)
+
+        hi23 = sub(mul(m[2][1], m[3][2], s1), mul(m[3][1], m[2][2], s2), hi23)
+        hi24 = sub(mul(m[2][1], m[4][2], s1), mul(m[4][1], m[2][2], s2), hi24)
+        hi34 = sub(mul(m[3][1], m[4][2], s1), mul(m[4][1], m[3][2], s2), hi34)
+
+        s[1][1] = add(sub(mul(m[4][2], lo23, s1), mul(m[3][2], lo24, s2), s4), mul(m[2][2], lo34, s3), s[1][1]) 
+        s[1][2] = sub(sub(mul(m[3][2], lo14, s1), mul(m[4][2], lo13, s2), s4), mul(m[1][2], lo34, s3), s[1][2])
+        s[1][3] = add(sub(mul(m[1][2], lo24, s1), mul(m[2][2], lo14, s2), s4), mul(m[4][2], lo12, s3), s[1][3]) 
+        s[1][4] = sub(sub(mul(m[2][2], lo13, s1), mul(m[1][2], lo23, s2), s4), mul(m[3][2], lo12, s3), s[1][4])
+        
+        s[2][1] = sub(sub(mul(m[3][1], lo24, s1), mul(m[4][1], lo23, s2), s4), mul(m[2][1], lo34, s3), s[2][1])
+        s[2][2] = add(sub(mul(m[4][1], lo13, s1), mul(m[3][1], lo14, s2), s4), mul(m[1][1], lo34, s3), s[2][2]) 
+        s[2][3] = sub(sub(mul(m[2][1], lo14, s1), mul(m[1][1], lo24, s2), s4), mul(m[4][1], lo12, s3), s[2][3])
+        s[2][4] = add(sub(mul(m[1][1], lo23, s1), mul(m[2][1], lo13, s2), s4), mul(m[3][1], lo12, s3), s[2][4]) 
+        
+        s[3][1] = add(sub(mul(m[4][4], hi23, s1), mul(m[3][4], hi24, s2), s4), mul(m[2][4], hi34, s3), s[3][1]) 
+        s[3][2] = sub(sub(mul(m[3][4], hi14, s1), mul(m[4][4], hi13, s2), s4), mul(m[1][4], hi34, s3), s[3][2])
+        s[3][3] = add(sub(mul(m[1][4], hi24, s1), mul(m[2][4], hi14, s2), s4), mul(m[4][4], hi12, s3), s[3][3]) 
+        s[3][4] = sub(sub(mul(m[2][4], hi13, s1), mul(m[1][4], hi23, s2), s4), mul(m[3][4], hi12, s3), s[3][4])
+        
+        s[4][1] = sub(sub(mul(m[3][3], hi24, s1), mul(m[4][3], hi23, s2), s4), mul(m[2][3], hi34, s3), s[4][1])
+        s[4][2] = add(sub(mul(m[4][3], hi13, s1), mul(m[3][3], hi14, s2), s4), mul(m[1][3], hi34, s3), s[4][2]) 
+        s[4][3] = sub(sub(mul(m[2][3], hi14, s1), mul(m[1][3], hi24, s2), s4), mul(m[4][3], hi12, s3), s[4][3])
+        s[4][4] = add(sub(mul(m[1][3], hi23, s1), mul(m[2][3], hi13, s2), s4), mul(m[3][3], hi12, s3), s[4][4]) 
+        
+        return div(s, d, r)
+      end
+    end
+  },
+
+  vornmath.utils.componentWiseReturnOnlys('inverse', 1)
+
 }
 
 -- pseudometatables for non-numerics
