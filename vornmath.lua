@@ -3910,7 +3910,7 @@ vornmath.bakeries.inverse = {
       end
     end
   },
-  { -- inverse(mat3x3, mat3x3)
+  { -- inverse(mat4x4, mat4x4)
     signature_check = function(types)
       if #types < 2 or types[1] ~= types[2] then return false end
       local meta = vornmath.metatables[types[1]]
