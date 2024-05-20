@@ -429,6 +429,13 @@ function testCrossProduct()
     lu.assertEquals(vm.cross(b,a), vm.vec3(7,-5,1))
 end
 
+function testNormalize()
+    local a = vm.vec3(3,4,12)
+    local b = vm.cvec2(3, vm.complex(0,4))
+    lu.assertAlmostEquals(vm.normalize(a), a / 13)
+    lu.assertAlmostEquals(vm.normalize(b), b / 5)
+end
+
 function testDeterminant()
     local a = vm.mat2(1,2,3,4)
     lu.assertEquals(vm.determinant(a), -2)

@@ -3435,7 +3435,7 @@ vornmath.bakeries.normalize = {
     signature_check = function(types)
       if #types < 2 then return false end
       if types[1] ~= types[2] then return false end
-      local first_meta = vornmath.metatables(types[1])
+      local first_meta = vornmath.metatables[types[1]]
       if first_meta.vm_shape ~= 'vector' then return false end
       if vornmath.utils.hasBakery('length', {types[1]}) then
         types[3] = nil
