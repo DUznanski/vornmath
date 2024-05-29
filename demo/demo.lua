@@ -3,7 +3,6 @@ local demo = {}
 local menu_text = [[
 1. mandelbrot
 2. tesseract
-3. geodesic
 ]]
 
 function demo:enter()
@@ -25,7 +24,7 @@ end
 function demo:keypressed(key, scancode, keyrepeat)
     if scancode == '1' then change_state("mandelbrot") end
     if scancode == '2' then change_state("tesseract") end
-    if scancode == '3' then change_state("geodesic") end
+--    if scancode == '3' then change_state("geodesic") end
 end
 
 return demo

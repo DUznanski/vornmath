@@ -1,7 +1,7 @@
 local states = {}
 
 states.demo = require('demo.demo')
---states.tesseract = require('demo.tesseract')
+states.tesseract = require('demo.tesseract')
 states.mandelbrot = require('demo.mandelbrot')
 
 local state = "demo"
