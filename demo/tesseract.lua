@@ -144,10 +144,15 @@ function tesseract:update(dt)
     -- send that matrix to my shader
     self.persepective_shader:send('WORLD_FROM_MODEL', "column", self.world_from_model)
 end
-
+local instructions = [[
+ws, ad, qe, ik, jl, uo: rotate the cube in space
+r: reset the cube's rotation
+]]
 function tesseract:draw()
+    love.graphics.print(instructions)
     love.graphics.setShader(self.persepective_shader)
     love.graphics.draw(self.mesh)
+    love.graphics.setShader()
 end
 
 function tesseract:exit()

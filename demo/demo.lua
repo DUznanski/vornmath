@@ -1,7 +1,7 @@
 local demo = {}
 
 local menu_text = [[
-1. mandelbrot
+1. mandelbrot (give it a moment it has to think a lot at the start)
 2. tesseract
 ]]
 
