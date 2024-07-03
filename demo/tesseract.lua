@@ -95,10 +95,10 @@ function tesseract:enter()
     -- build the camera here.
     local camera_position = vm.vec3(4,2,8)
     local gravity_up = vm.vec3(0,1,0)
-    local camera_aim = -vm.normalize(camera_position)
-    local camera_right = vm.normalize(vm.cross(gravity_up, camera_aim))
-    local camera_up = vm.normalize(vm.cross(camera_aim, camera_right))
-    local camera_aim = vm.mat4(vm.transpose(vm.mat3(camera_right, camera_up, camera_aim)))
+    local camera_forward = -vm.normalize(camera_position)
+    local camera_right = vm.normalize(vm.cross(gravity_up, camera_forward))
+    local camera_up = vm.normalize(vm.cross(camera_forward, camera_right))
+    local camera_aim = vm.mat4(vm.transpose(vm.mat3(camera_right, camera_up, camera_forward)))
     local camera_translate = vm.mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, -camera_position, 1)
     local distance_to_center = vm.length(camera_position)
     local fov_radius = 3
@@ -144,10 +144,12 @@ function tesseract:update(dt)
     -- send that matrix to my shader
     self.persepective_shader:send('WORLD_FROM_MODEL', "column", self.world_from_model)
 end
+
 local instructions = [[
 ws, ad, qe, ik, jl, uo: rotate the cube in space
 r: reset the cube's rotation
 ]]
+
 function tesseract:draw()
     love.graphics.print(instructions)
     love.graphics.setShader(self.persepective_shader)

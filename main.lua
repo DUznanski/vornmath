@@ -1,8 +1,11 @@
 local states = {}
 
+love.graphics.setDepthMode('less',true)
+
 states.demo = require('demo.demo')
 states.tesseract = require('demo.tesseract')
 states.mandelbrot = require('demo.mandelbrot')
+states.geodesic = require('demo.geodesic')
 
 local state = "demo"
 
@@ -22,6 +25,7 @@ end
 
 function love.keypressed(key, scancode, keyrepeat)
     if scancode == 'escape' then
+        if state == 'demo' then love.event.quit() end
         change_state("demo")
     end
     states[state]:keypressed(key, scancode, keyrepeat)
