@@ -1052,6 +1052,36 @@ vornmath.bakeries.fill = {
     end,
     return_type = function(types) return 'quat' end
   },
+  { -- fill(quat, vec3, vec3)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat','vec3','vec3'}),
+    create = function(types)
+      local dot = vornmath.utils.bake('dot', {'vec3', 'vec3'})
+      local cross = vornmath.utils.bake('cross', {'vec3', 'vec3', 'vec3'})
+      local eq = vornmath.utils.bake('eq', {'vec3', 'vec3'})
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
+      local sqrt = vornmath.utils.bake('sqrt', {'quat', 'quat'})
+      local normalize = vornmath.utils.bake('normalize', {'vec3', 'vec3'})
+      local c = vornmath.vec3()
+      local zero = vornmath.vec3()
+      return function(q, from, to)
+        local d = dot(from, to)
+        c = cross(from, to, c)
+        if eq(c, zero) and d < 0 then
+          -- we need to pick an axis at all.
+          if from[1] == 0 and from[2] == 0 then
+            return fill(q,0,1,0,0)
+          else
+            c = fill(c,from[2], -from[1],0)
+            c = normalize(c,c)
+            return fill(q,0,c[1],c[2],0)
+          end
+        end
+        q = fill(q, d, c[1], c[2], c[3])
+        return sqrt(q, q)
+      end
+    end,
+    return_type = function(types) return 'quat' end
+  },
   { -- fill(vec)
     signature_check = function(types)
       local first = vornmath.metatables[types[1]]
@@ -1356,6 +1386,34 @@ vornmath.bakeries.fill = {
       return load(code)(implicit_casts)
     end,
     return_type = function(types) return types[1] end
+  },
+  { -- fill(mat3, quat)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'mat3x3', 'quat'}),
+    create = function(types)
+      local sqabs = vornmath.utils.bake('sqabs', {'quat'})
+      local fill = vornmath.utils.bake('fill', {'mat3x3', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'})
+      return function(m, q)
+        local s = 2 / sqabs(q)
+        local bs, cs, ds = q.b * s, q.c * s, q.d * s
+        local ab, ac, ad = q.a * bs, q.a * cs, q.a * ds
+        local bb, cc, dd = q.b * bs, q.c * cs, q.d * ds
+        local bc, cd, bd = q.b * cs, q.c * ds, q.b * ds
+        return fill(m, 1 - cc - dd, bc + ad, bd - ac, bc - ad, 1 - bb - dd, cd + ab, bd + ac, cd - ab, 1 - bb - cc)
+      end
+    end,
+    return_type = function(types) return 'mat3x3' end
+  },
+  { -- fill(mat4, quat)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'mat4x4', 'quat'}),
+    create = function(types)
+      local make_3 = vornmath.utils.bake('fill', {'mat3x3', 'quat'})
+      local fill = vornmath.utils.bake('fill', {'mat4x4', 'mat3x3'})
+      local scratch = vornmath.mat3()
+      return function(m, q)
+        return fill(m, make_3(scratch, q))
+      end
+    end,
+    return_type = function(types) return 'mat4x4' end
   }
 }
 
@@ -1766,6 +1824,37 @@ vornmath.bakeries.mul = {
       return vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
     end
   },
+  { -- mul(quat, vec3, vec3)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'vec3', 'vec3'}),
+    create = function(types)
+      local mul = vornmath.utils.bake('mul', {'quat', 'quat', 'quat'})
+      local conj = vornmath.utils.bake('conj', {'quat', 'quat'})
+      local qfill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
+      local vfill = vornmath.utils.bake('fill', {'vec3', 'number', 'number', 'number'})
+      local c = vornmath.quat()
+      local p = vornmath.quat()
+      return function(q, v, result)
+        c = conj(q, c)
+        p = qfill(p, 0, v[1], v[2], v[3])
+        p = mul(q, p, p)
+        p = mul(p, c, p)
+        return vfill(result, p.b, p.c, p.d)
+      end
+    end,
+    return_type = function(types) return 'vec3' end
+  },
+  { -- mul(quat, vec3)
+  signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'vec3'}),
+  create = function(types)
+    local create = vornmath.utils.bake('vec3', {})
+    local f = vornmath.utils.bake('mul', {'quat', 'vec3', 'vec3'})
+    return function(q, v)
+      local result = create()
+      return f(q, v, result)
+    end
+  end,
+  return_type = function(types) return 'vec3' end
+},
   vornmath.utils.componentWiseExpander('mul', {'vector', 'scalar'}),
   vornmath.utils.componentWiseExpander('mul', {'scalar', 'vector'}),
   vornmath.utils.componentWiseExpander('mul', {'vector', 'vector'}),
@@ -3583,7 +3672,6 @@ vornmath.bakeries.outerProduct = {
       local width = result_type.vm_dim[1]
       local height = result_type.vm_dim[2]
       local mul = vornmath.utils.bake('mul', {left_type.vm_storage, right_type.vm_storage, result_type.vm_storage})
-      local fill = vornmath.utils.bake('fill', {types[3], types[3]})
       return function(left, right, result)
         for x = 1, width do
           for y = 1, height do

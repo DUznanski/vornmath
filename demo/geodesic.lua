@@ -9,36 +9,11 @@ local geodesic = {}
 
 local PHI = (1 + math.sqrt(5)) / 2
 
-local function quat_from_vectors(a, b)
-    local d = vm.dot(a, b)
-    local c = vm.cross(a, b)
-    local q = vm.quat(d, c.x, c.y, c.z)
-    return vm.sqrt(q)
-end
-
-local function rotate_vector_by_quat(v, q)
-    local i = vm.complex(0,1)
-    local qv = vm.quat(i, v)
-    local qinverse = vm.conj(q)
-    local rotated = q * qv * qinverse
-    local _,result = vm.axisDecompose(rotated)
-    return result
-end
-
 -- every coordinate we make is going in a big array
 
 local function index_from_coordinates(face, u, v)
     local v_offset = ((2*WIDTH + 1) * v - v * v) / 2
     return (face - 1) * WHOLE_FACE_SIZE + v_offset + u + 1
-end
-
-local function coordinates_from_index(index)
-    local on_face = (index - 1) % WHOLE_FACE_SIZE
-    local face = (index - on_face - 1) / WHOLE_FACE_SIZE + 1
-    local v = math.floor((2 * WIDTH + 1 - math.sqrt((WHOLE_FACE_SIZE - on_face) * 8 + 1)) / 2)
-    local v_offset = ((2 * WIDTH + 1) * v - v * v) / 2
-    local u = on_face - v_offset
-    return face, u, v
 end
 
 local function annotated_vertex(corner, center)
@@ -47,6 +22,12 @@ local function annotated_vertex(corner, center)
         center[1], center[2], center[3],
         center[1], center[2], center[3]
     }
+end
+
+local function index_triangle(t, base, offset_1, offset_2)
+    table.insert(t, base)
+    table.insert(t, base + offset_1)
+    table.insert(t, base + offset_2)
 end
 
 function geodesic:enter()
@@ -83,16 +64,16 @@ function geodesic:enter()
         local a = corners[face[1]]
         local b = corners[face[2]]
         local c = corners[face[3]]
-        local ab_rotation = quat_from_vectors(a,b)
-        local bc_rotation = quat_from_vectors(b,c)
-        local ca_rotation = quat_from_vectors(c,a)
+        local ab_rotation = vm.quat(a,b)
+        local bc_rotation = vm.quat(b,c)
+        local ca_rotation = vm.quat(c,a)
         local ab_points = {}
         local bc_points = {}
         local ca_points = {}
         for i = 0, STEPS do
-            ab_points[i] = rotate_vector_by_quat(a, ab_rotation^(i/STEPS))
-            bc_points[i] = rotate_vector_by_quat(b, bc_rotation^(i/STEPS))
-            ca_points[i] = rotate_vector_by_quat(c, ca_rotation^(i/STEPS))
+            ab_points[i] = ab_rotation^(i/STEPS) * a
+            bc_points[i] = bc_rotation^(i/STEPS) * b
+            ca_points[i] = ca_rotation^(i/STEPS) * c
         end
         local a_circles = {}
         local b_circles = {}
@@ -125,22 +106,6 @@ function geodesic:enter()
                     local bc_intersect = vm.normalize(vm.cross(b_circle, c_circle))
                     local ca_intersect = vm.normalize(vm.cross(c_circle, a_circle))
                     self.vertices[i] = vm.normalize(ab_intersect + bc_intersect + ca_intersect)
-                end
-                -- while we're here we should add the triangles.  This is getting replaced when I do the normals
-                -- because a lot of vertices are getting duplicated.
-                
-                if w >= 1 then
-                    local left = index_from_coordinates(face_id, u+1, v)
-                    local right = index_from_coordinates(face_id, u, v+1)
-                    table.insert(self.vertex_indices, i)
-                    table.insert(self.vertex_indices, left)
-                    table.insert(self.vertex_indices, right)
-                    if w >= 2 then
-                        local both = index_from_coordinates(face_id, u+1, v+1)
-                        table.insert(self.vertex_indices, right)
-                        table.insert(self.vertex_indices, left)
-                        table.insert(self.vertex_indices, both)
-                    end
                 end
             end
         end
@@ -178,31 +143,19 @@ function geodesic:enter()
                     success_count = success_count + 1
                 end
                 for i = 1, success_count * 2 - 1, 2 do
-                    table.insert(self.vertex_indices, starting_index)
-                    table.insert(self.vertex_indices, starting_index + i)
-                    table.insert(self.vertex_indices, starting_index + i + 1)
+                    index_triangle(self.vertex_indices, starting_index, i, i+1)
                 end
                 if success_count == 2 then
                     if u > 0 then -- the two that we get are adjacent without crossing the loop
-                        table.insert(self.vertex_indices, starting_index)
-                        table.insert(self.vertex_indices, starting_index + 2)
-                        table.insert(self.vertex_indices, starting_index + 3)
+                        index_triangle(self.vertex_indices, starting_index, 2, 3)
                     else
-                        table.insert(self.vertex_indices, starting_index)
-                        table.insert(self.vertex_indices, starting_index + 4)
-                        table.insert(self.vertex_indices, starting_index + 1)
+                        index_triangle(self.vertex_indices, starting_index, 4, 1)
                     end
                 end
                 if success_count == 3 then
-                    table.insert(self.vertex_indices, starting_index)
-                    table.insert(self.vertex_indices, starting_index + 2)
-                    table.insert(self.vertex_indices, starting_index + 3)
-                    table.insert(self.vertex_indices, starting_index)
-                    table.insert(self.vertex_indices, starting_index + 4)
-                    table.insert(self.vertex_indices, starting_index + 5)
-                    table.insert(self.vertex_indices, starting_index)
-                    table.insert(self.vertex_indices, starting_index + 6)
-                    table.insert(self.vertex_indices, starting_index + 1)
+                    index_triangle(self.vertex_indices, starting_index, 2, 3)
+                    index_triangle(self.vertex_indices, starting_index, 4, 5)
+                    index_triangle(self.vertex_indices, starting_index, 6, 1)
                 end
             end
         end
@@ -219,8 +172,7 @@ function geodesic:enter()
     self.shader:send('camera_from_world', 'column', self.camera_from_world)
     self.shader:send('world_from_model', 'column', self.world_from_model)
     self.shader:send('tex', self.tex)
-    print(#self.vertex_indices / 3)
-    self.axial_tilt = vm.mat4(vm.mat2(math.cos(0.41), math.sin(0.41), -math.sin(0.41), math.cos(0.41)))
+    self.axial_tilt = vm.quat(vm.vec3(0,0,1), vm.rad(-23.5))
     self.t = 0
 end
 
@@ -231,7 +183,7 @@ end
 
 function geodesic:update(dt)
     self.t = self.t + dt / 5
-    self.world_from_model = self.axial_tilt * vm.mat4(math.cos(self.t),0,math.sin(self.t),0, 0,1,0,0, -math.sin(self.t),0,math.cos(self.t),0, 0,0,0,1)
+    self.world_from_model = vm.mat4(self.axial_tilt * vm.quat(vm.vec3(0,1,0), -self.t))
     self.shader:send('world_from_model', 'column', self.world_from_model)
 
 end
