@@ -82,11 +82,11 @@ do
   end
 end
 
+-- pick which one you want here.
+
 local update_cell = update_cell_functions_dispatch_modifying
 
 function mandelbrot:update(dt)
---  if n > 250 then return end
---  love.graphics.captureScreenshot('frame' .. tostring(n) .. '.png')
   for _,cell in ipairs(self.cells) do
     if not cell.dead then
       update_cell(cell)

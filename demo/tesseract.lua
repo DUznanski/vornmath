@@ -3,8 +3,6 @@ local vm = require('vornmath')
 local tesseract = {}
 
 function tesseract:enter()
-    -- okay so we have to build the model.
-    -- pick a pair of things to do
     local colors = {
         {0xff/255, 0x9c/255, 0x8e/255, 1},
         {0xff/255, 0xd9/255, 0x7b/255, 1},
@@ -13,9 +11,11 @@ function tesseract:enter()
         {0x91/255, 0xae/255, 0xff/255, 1},
         {0xff/255, 0xb7/255, 0xfb/255, 1}
     }
-    local directions = {1,4,16,64}
+    local directions = vm.vec4(1,4,16,64)
     local single_cube = {}
     local color_index = 0
+    -- okay so we have to build the model.
+    -- pick a pair of directions that this face follows
     for i = 1,3 do
         for j = i+1, 4 do
             local spares = {}
@@ -57,11 +57,11 @@ function tesseract:enter()
             end
         end
     end
+
     -- these are really just used to make indices though so we'll convert back from thingy to index
     local corner_indices = {}
-    local index_target = vm.vec4(1,4,16,64)
     for _, corner in ipairs(corner_vectors) do
-        table.insert(corner_indices, vm.dot(index_target, corner))
+        table.insert(corner_indices, vm.dot(directions, corner))
     end
     -- and then add them to the cube indices from earlier
     local all_triangles = {}
