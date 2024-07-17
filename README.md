@@ -13,6 +13,8 @@ global.  Just put `vornmath.lua` somewhere convenient in your source tree and do
 local vm = require('vornmath')
 ```
 
+You don't even need to bring a license file alongside, there's one onboard!
+
 ## Basic concepts
 
 ### Returns and outvars
