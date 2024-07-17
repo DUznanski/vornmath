@@ -166,6 +166,7 @@ vm.quat(a+bi, c+di) --> a + bi + cj + dk
 vm.quat(a+bi+cj+dk) --> a + bi + cj + dk
 vm.quat(vm.vec3(b, c, d), angle) --> cos(angle/2) + sin(angle/2)*(bi + cj + dk) 
 vm.quat(a+bi, vm.vec3(c, d, e)) --> a + b * (ci + dj + ek)
+vm.quat(vm.vec3(...), vm.vec3(...))
 ```
 
 Higher dimensional complex numbers, of the form `a + bi + cj + dk`.  Fields `a`,
@@ -174,9 +175,13 @@ work with complex numbers also work with quaternions! (I know, I was surprised
 too)  However, quaternion multiplication is *non-commutative*: if `x` and `y`
 are quaternions, then `x * y` and `y * x` usually give different results.
 
-The axis-angle and complex-axis constructors both expect (but neither enforce
-nor convert to) a unit vector; you might get unexpected results if you pass
-something else.
+The two vector constructor produces the shortest rotation that takes the first
+vector to the second.
+
+The axis-angle, complex-axis, and two-vector constructors all expect (but
+neither enforce nor convert to) a unit vector; you might get unexpected results
+if you pass something else.
+
 
 ### `boolean`
 
@@ -244,7 +249,9 @@ swizzleWritezy(v, vm.vec2(6,7)) --> v = <4,7,6>
 vm.cmat2() --> [[1+0i,0+0i], [0+0i,1+0i]]
 vm.mat3(a) --> [[a,0,0], [0,a,0], [0,0,a]]
 vm.mat2x3(a,b,c,d,e,f) --> [[a,b,c], [d,e,f]]
-vm.mat3(mat2x3(a,b,c,d,e,f)) --> [[a,b,c], [d,e,f], [0,0,1]]
+vm.mat3(vm.mat2x3(a,b,c,d,e,f)) --> [[a,b,c], [d,e,f], [0,0,1]]
+vm.mat3(vm.quat(...)) --> rotation matrix
+vm.mat4(vm.quat(...)) --> rotation matrix
 ```
 
 Matrices.  There's 18 of these!  They can use numbers or complexes, can be 2 to
@@ -255,7 +262,7 @@ rows.  `mat2x4` is a matrix with two columns and four rows, filled with numbers;
 `cmat3x2` is a matrix with three columns and two rows, filled with complex
 numbers.  Square matrices, with the same number of rows as columns, have shorter
 aliases: `mat4` is equivalent to `mat4x4`, `cmat3` is equivalent to `cmat3x3`.
-When used in function signatures, always use the full name, not the alias.
+When used in function signatures, always use the longer name, not the alias.
 
 Matrices are indexed numerically by column, starting at `1`; each column is a
 `vec`tor in its own right.
@@ -266,6 +273,9 @@ except for entries on the diagonal which will receive `1`.
 The general constructor can take any number of scalar or vector (not matrix!)
 arguments which together provide enough components to completely fill the
 matrix so long as the last component of the matrix lands in the last argument.
+
+The quaternion constructors produce a 3d rotation matrix; the `mat4` version
+simply augments it with the identity so it works with the larger matrix.
 
 ## Functions
 
@@ -323,6 +333,8 @@ The result is a vector or matrix with the same number of rows as the left
 operand and the same number of columns as the right operand.  The left
 operand's number of columns, and the right operand's number of rows, must be
 the same for this to work.
+
+Multiplying a `quat` by a `vec3` results in the vector rotated by the quat.
 
 #### `div` (`a / b`)
 
@@ -840,7 +852,7 @@ which accepts a table of type names:
 #### Why?
 
 Let's look at multiplication.  `mul` has, including filling and return-only
-versions, 593 distinct valid signatures, in a dozen or so patterns, all of which
+versions, 594 distinct valid signatures, in a dozen or so patterns, all of which
 have to actually work.  This is already too many to have each one represented
 directly in the source file - I know, because I tried it:  it would be about
 half the size as the vornmath library is as a whole right now.  Worse still
