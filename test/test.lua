@@ -142,12 +142,34 @@ function testLog()
     lu.assertEquals(vm.log(2,2), 1)
     lu.assertAlmostEquals(vm.log(i), vm.complex(0,math.pi / 2))
     lu.assertAlmostEquals(vm.log(-1, i), vm.complex(2))
+    lu.assertEquals(vm.log2(2), 1)
+    lu.assertAlmostEquals(vm.log10(10), 1) -- argh, luajit, stop what you do
 end
 
 function testExp()
     lu.assertEquals(vm.exp(2), math.exp(2))
     lu.assertAlmostEquals(vm.exp(vm.complex(0,math.pi)), vm.complex(-1,0))
     lu.assertAlmostEquals(vm.exp(vm.quat(0,0,math.pi/2,0)), vm.quat(0,0,1,0))
+    lu.assertAlmostEquals(vm.exp2(3), 8)
+end
+
+function testInverseSqrt()
+    lu.assertEquals(vm.inversesqrt(4), 0.5)
+    lu.assertEquals(vm.inversesqrt(vm.complex(0,2)), vm.complex(0.5,-0.5))
+end
+
+function testArg()
+    lu.assertEquals(vm.arg(1), 0)
+    lu.assertEquals(vm.arg(-1), math.pi)
+    lu.assertAlmostEquals(vm.arg(vm.complex(0,1)), math.pi / 2)
+    lu.assertAlmostEquals(vm.arg(vm.quat(0,0,0,1)), math.pi / 2)
+end
+
+function testSign()
+    lu.assertEquals(vm.sign(5), 1)
+    lu.assertEquals(vm.sign(-3), -1)
+    lu.assertEquals(vm.sign(0), 0)
+    lu.assertAlmostEquals(vm.sign(vm.complex(1,1)), vm.complex(1/vm.sqrt(2), 1/vm.sqrt(2)))
 end
 
 function testAbs()
@@ -362,6 +384,13 @@ function testAcos()
     lu.assertAlmostEquals(vm.acos(vm.complex(0)), vm.complex(math.pi/2))
     lu.assertAlmostEquals(vm.acos(vm.complex(1)), vm.complex(0))
     lu.assertAlmostEquals(vm.acos(i), vm.complex(math.pi/2, math.log(math.sqrt(2) - 1)))
+end
+
+function testAcosh()
+    lu.assertAlmostEquals(vm.acosh(1), 0)
+    lu.assertAlmostEquals(vm.acosh(vm.complex(1)), vm.complex(0))
+    lu.assertAlmostEquals(vm.acosh(vm.complex(0)), vm.complex(0,math.pi / 2))
+    lu.assertAlmostEquals(vm.acosh(vm.complex(0,1)), vm.complex(vm.log(1 + vm.sqrt(2)), math.pi / 2))
 end
 
 function testAsin()

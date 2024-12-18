@@ -3,6 +3,7 @@
 Vorn's Lua Math Library
 
 Vornmath is (will be) a comprehensive vector and complex math library for lua.
+It works on lua versions 5.1 through 5.4 as well as luajit.
 
 ## Installing and Using
 
@@ -535,6 +536,14 @@ vm.exp(x[, y]) --> y = e^x
 
 Computes the exponential function `e^z`.
 
+#### `exp2`
+
+```lua
+vm.exp2(x[, y]) --> y = 2^x
+```
+
+Computes the base-2 exponential function `2^z`.
+
 #### `log`
 
 ```lua
@@ -545,13 +554,30 @@ vm.log(x, b[, y]) --> y = log_b x
 Computes the logarithm.  For single-argument calls, this is the natural log.
 The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.
 
+#### `log2`
+
+```lua
+vm.log2(x[, y]) --> y = log_2 x
+```
+
+Computes the base-2 logarithm.
+
+
 #### `log10`
 
 ```lua
-vm.log10(x[, y]) --> y = ln x
+vm.log10(x[, y]) --> y = log_10 x
 ```
 
 Computes the base-10 logarithm.
+
+#### `log2`
+
+```lua
+vm.log2(x[, y]) --> y = log_2 x
+```
+
+Computes the base-2 logarithm.
 
 #### `sqrt`
 
@@ -563,6 +589,14 @@ Computes the square root.  Fails if given a negative `number`; given a negative
 real `complex` or `quat` it will produce some positive multiple of *i*.  All
 numbers (other than zero) have two distinct candidates for their square root;
 this function produces the one with a positive real part.
+
+#### `inversesqrt`
+
+```lua
+vm.inversesqrt(x[, y]) --> y = 1 / sqrt(x)
+```
+
+Computes the inverse square root, the reciprocal of the square root.
 
 #### `hypot`
 
@@ -638,10 +672,21 @@ vm.copysign(sign, mag[, result]) --> |result| = |mag|, has same sign as sign
 
 Copys the sign of `sign` onto `mag`.
 
+#### `sign`
+
+```lua
+vm.sign(x, result) --> result = x/abs(x)
+```
+
+Returns a value with magnitude 1 that has the same sign as x, unless x is 0,
+in which case returns 0.  Also works on complexes and quaternions, giving values
+with the same argument and vector as x.  Notably this means that all results of
+`sign` are *unit* except for when the input is 0.
+
 #### `floor`
 
 ```lua
-vm.floor(x[, y]) --> y <= x; y + 1 > x; y is integer
+vm.floor(x[, y]) --> y <= x < y + 1; y is integer
 ```
 
 Computes the floor, the highest integer that is at most x.
@@ -649,10 +694,44 @@ Computes the floor, the highest integer that is at most x.
 #### `ceil`
 
 ```lua
-vm.ceil(x[, y]) --> y >= x; y - 1 < x; y is integer
+vm.ceil(x[, y]) --> y - 1 < x <= y; y is integer
 ```
 
 Computes the ceiling, the lowest integer that is at least x.
+
+#### `trunc`
+
+```lua
+vm.trunc(x[, y]) -- 0 <= y <= x < y + 1 or y - 1 < x <= y <= 0; y is integer
+```
+
+Truncates a number, removing any fractional part; selects the nearest integer towards 0.
+
+#### `round`
+
+```lua
+vm.round(x[, y]) -- |x - y| <= 0.5; y is integer
+```
+
+Rounds a number to the nearest integer.  If the fractional part of x is exactly
+0.5, rounds up.  This is somewhat faster than `roundEven`.
+
+#### `roundEven`
+
+```lua
+vm.roundEven(x[, y]) -- |x - y| <= 0.5; y is integer
+```
+
+Rounds a number to the nearest integer.  If the fractional part of x is exactly
+0.5, rounds to the nearest even number.  This is somewhat slower than `round`.
+
+#### `fract`
+
+```lua
+vm.fract(x[, y]) --> y = x - trunc(x)
+```
+
+Gives the fractional part of x, with the same sign as x.
 
 #### `modf`
 
