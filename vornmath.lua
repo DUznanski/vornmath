@@ -2731,7 +2731,7 @@ vornmath.bakeries.atanh = {
     signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
     create = function(types)
       return function(x)
-        return math.log((1 + x) / (1 - x) / 2)
+        return math.log((1 + x) / (1 - x)) / 2
       end
     end,
     return_type = function(types) return 'number' end
@@ -3084,7 +3084,8 @@ vornmath.bakeries.arg = {
         return carg(z)
       end
     end
-  }
+  },
+  vornmath.utils.componentWiseExpander('arg', {'vector'}, true)
 }
 
 vornmath.bakeries.axisDecompose = {

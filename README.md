@@ -618,7 +618,8 @@ vm.arg(a+bi[, x]) --> x = atan(b, a)
 ```
 
 Computes the argument or phase of a complex number, the angle the complex
-number makes with the positive real line.
+number makes with the positive real line.  Also works on regular numbers and
+quaternions.
 
 #### `conj`
 

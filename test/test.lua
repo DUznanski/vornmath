@@ -127,6 +127,12 @@ function testQuatPower()
     lu.assertAlmostEquals(a^b,vm.quat(0,0,0,1))
 end
 
+function testAxisDecompose()
+    local z, axis = vm.axisDecompose(vm.quat(1,2,3,4))
+    lu.assertAlmostEquals(z, vm.complex(1,math.sqrt(29)))
+    lu.assertAlmostEquals(axis, vm.vec3(2,3,4)/math.sqrt(29))
+end
+
 function testAtan()
     lu.assertAlmostEquals(vm.atan(1), math.pi / 4)
     lu.assertAlmostEquals(vm.atan(2,2), math.pi / 4)
@@ -134,6 +140,12 @@ function testAtan()
     lu.assertEquals(vm.atan(vm.complex(0)), vm.complex(0))
     lu.assertAlmostEquals(vm.atan(vm.complex(1)), vm.complex(math.pi / 4))
     lu.assertAlmostEquals(vm.atan(vm.complex(0,2)), vm.complex(math.pi / 2, math.log(3) / 2))
+end
+
+function testAtanh()
+    lu.assertEquals(vm.atanh(0), 0)
+    lu.assertAlmostEquals(vm.atanh(0.5), math.log(3) / 2)
+    lu.assertAlmostEquals(vm.atanh(vm.complex(0,1)), vm.complex(0, math.pi / 4))
 end
 
 function testLog()
@@ -162,7 +174,7 @@ function testArg()
     lu.assertEquals(vm.arg(1), 0)
     lu.assertEquals(vm.arg(-1), math.pi)
     lu.assertAlmostEquals(vm.arg(vm.complex(0,1)), math.pi / 2)
-    lu.assertAlmostEquals(vm.arg(vm.quat(0,0,0,1)), math.pi / 2)
+    lu.assertAlmostEquals(vm.arg(vm.quat(1,0,0,1)), math.pi / 4)
 end
 
 function testSign()
@@ -392,6 +404,15 @@ function testAcosh()
     lu.assertAlmostEquals(vm.acosh(vm.complex(0)), vm.complex(0,math.pi / 2))
     lu.assertAlmostEquals(vm.acosh(vm.complex(0,1)), vm.complex(vm.log(1 + vm.sqrt(2)), math.pi / 2))
 end
+
+function testAsinh()
+    lu.assertAlmostEquals(vm.asinh(0), 0)
+    lu.assertAlmostEquals(vm.asinh(1), math.log(math.sqrt(2)+1))
+    lu.assertAlmostEquals(vm.asinh(vm.complex(0)), vm.complex(0))
+    lu.assertAlmostEquals(vm.asinh(vm.complex(1)), vm.complex(math.log(math.sqrt(2)+1)))
+    lu.assertAlmostEquals(vm.asinh(vm.complex(0,1)), vm.complex(0, math.pi / 2))
+end
+
 
 function testAsin()
     local i = vm.complex(0,1)
