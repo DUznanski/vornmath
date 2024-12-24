@@ -769,6 +769,14 @@ vm.max(x, y[, result]) --> larger of x and y
 
 Finds the maximum of the two inputs.
 
+#### `clamp`
+
+```lua
+vm.clamp(x, lo, hi) --> min(max(x, lo), hi)
+```
+
+Finds the closest value to x that's also between lo and hi inclusive.
+
 #### `frexp`
 
 ```lua

@@ -389,6 +389,19 @@ function testSwizzleWrite()
     lu.assertEquals(a, vm.vec3(15,12,10))
 end
 
+function testConj()
+    lu.assertEquals(vm.conj(3), 3)
+    lu.assertEquals(vm.conj(vm.complex(1,2)), vm.complex(1,-2))
+    lu.assertEquals(vm.conj(vm.quat(1,2,3,4)), vm.quat(1,-2,-3,-4))
+end
+
+function testCopySign()
+    lu.assertEquals(vm.copysign(2,-3), -2)
+    lu.assertEquals(vm.copysign(-2,-3), -2)
+    lu.assertEquals(vm.copysign(-2,3), 2)
+    lu.assertEquals(vm.copysign(2,3), 2)
+end
+
 function testAcos()
     local i = vm.complex(0,1)
     lu.assertAlmostEquals(vm.acos(0), math.pi/2)
