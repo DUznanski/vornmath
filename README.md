@@ -732,7 +732,8 @@ Rounds a number to the nearest integer.  If the fractional part of x is exactly
 vm.fract(x[, y]) --> y = x - trunc(x)
 ```
 
-Gives the fractional part of x, with the same sign as x.
+Gives the fractional part of x, with the same sign as x.  Equivalent to the
+second return value of `modf`.
 
 #### `modf`
 
@@ -750,8 +751,9 @@ the usual flooring division.
 vm.fmod(x, y[, remainder]) --> remainder of division
 ```
 
-Gets the remainder of division such that the quotient is rounded toward zero;
-this gives different results from the usual `%` for negative values.
+Gets the remainder of division such that the quotient takes the sign of the
+numerator; this is different from % where it takes the sign of the 
+denominator.
 
 #### `min`
 
@@ -776,6 +778,15 @@ vm.clamp(x, lo, hi) --> min(max(x, lo), hi)
 ```
 
 Finds the closest value to x that's also between lo and hi inclusive.
+
+#### `fma`
+
+```lua
+vm.fma(a, b, c[, r]) --> r = a * b + c
+```
+
+Fused multiply-add.  This exists for compatibility: it doesn't do 
+anything special as far as precision or operation count goes.
 
 #### `frexp`
 
@@ -914,6 +925,37 @@ vm.inverse(m[, r]) --> r = m⁻¹
 
 Calculates the inverse of the matrix.
 
+### Vector relational functions
+
+The ones named for various comparison relations are componentwise for vectors:
+instead of returning a single boolean, they return a bvec where each component
+is the result of applying that relation to 
+
+#### `equal`
+
+```lua
+vm.equal(a,b) --> a bvec with true for equal components and false for unequal
+```
+
+Componentwise vector equality comparison.  If you want a single boolean, check
+[eq](#eq) instead.
+
+#### `any`
+
+```lua
+vm.any(v) --> logical or of all components
+```
+
+Returns `true` if any of the components of `v` are `true`; otherwise, `false`.
+
+#### `all`
+
+```lua
+vm.all(v) --> logical and of all components
+```
+
+Returns `true` if all of the components of `v` are `true`; otherwise, `false`.
+
 ## Technical Details
 
 ### The Bakery
@@ -1021,7 +1063,7 @@ vm.utils.getmetatable(obj) --> metatable
 
 Returns the vornmath metatable of the object: for built-in types where the
 metatable doesn't exist or is fixed, will return the fake metatable created for
-vm.
+vornmath.
 
 #### findTypeByData
 

@@ -460,7 +460,22 @@ end
 
 function testFloor()
     lu.assertEquals(vm.floor(2.5), 2)
-    lu.assertEquals(vm.floor(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,1,2,4))
+    lu.assertEquals(vm.floor(vm.vec4(1,1.2,-2.5,4.9)), vm.vec4(1,1,-3,4))
+end
+
+function testFract()
+    lu.assertAlmostEquals(vm.fract(2.6), 0.6)
+    lu.assertAlmostEquals(vm.fract(-5.2), -0.2)
+end
+
+function testFmod()
+    lu.assertEquals(vm.fmod(5,3), 2)
+    lu.assertEquals(vm.fmod(-5,3), -2)
+end
+
+
+function testFma()
+    lu.assertEquals(vm.fma(2,3,5), 11)
 end
 
 function testFrexp()
@@ -499,6 +514,15 @@ function testNormalize()
     lu.assertAlmostEquals(vm.normalize(b), b / 5)
 end
 
+function testFaceForward()
+    local i = vm.vec2(1,0)
+    local n = vm.vec2(0,1)
+    local frontish = vm.vec2(-1,1)
+    local backish = vm.vec2(1,1)
+    lu.assertEquals(vm.faceForward(n,i,frontish), n)
+    lu.assertEquals(vm.faceForward(n,i,backish), -n)
+end
+
 function testDeterminant()
     local a = vm.mat2(1,2,3,4)
     lu.assertEquals(vm.determinant(a), -2)
@@ -528,6 +552,30 @@ function testInverse()
     local c = vm.mat4(1,8,27,64,1,4,9,16,1,2,3,4,1,1,1,1)
     local d = vm.mat4(-1, 9, -26, 24, 3, -24, 57, -36, -3, 21, -42, 24, 1, -6, 11, -6) / 6
     lu.assertAlmostEquals(vm.inverse(c), d)
+end
+
+function testLength()
+    lu.assertEquals(vm.length(vm.vec2(3,4)), 5)
+end
+
+function testDistance()
+    lu.assertEquals(vm.distance(vm.vec2(3,0), vm.vec2(0,4)), 5)
+end
+
+function testComponentEqual()
+    lu.assertEquals(vm.equal(vm.vec3(1,2,3), vm.vec3(1,3,3)), vm.bvec3(true, false, true))
+end
+
+function testAnyAll()
+    local a = vm.bvec2(true, true)
+    local b = vm.bvec2(false, true)
+    local c = vm.bvec2(false, false)
+    lu.assertTrue(vm.any(a))
+    lu.assertTrue(vm.any(b))
+    lu.assertFalse(vm.any(c))
+    lu.assertTrue(vm.all(a))
+    lu.assertFalse(vm.all(b))
+    lu.assertFalse(vm.all(c))
 end
 
 os.exit(lu.LuaUnit.run())

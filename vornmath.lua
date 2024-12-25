@@ -148,7 +148,7 @@ function vornmath.utils.returnType(function_name, types)
   return bakery.return_type(types)
 end
 
-function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_number)
+function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_output_storage)
   return {
     signature_check = function(types)
       if #types > arity then
@@ -157,7 +157,7 @@ function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_num
           if i > arity and typename ~= 'nil' then return false end
         end
       end
-      local big_type = vornmath.utils.componentWiseConsensusType(types, force_number)
+      local big_type = vornmath.utils.componentWiseConsensusType(types, force_output_storage)
       if not big_type then return false end
       local full_types = {}
       for i, typename in ipairs(types) do
@@ -172,7 +172,7 @@ function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_num
       end
     end,
     create = function(types)
-      local big_type = vornmath.utils.componentWiseConsensusType(types, force_number)
+      local big_type = vornmath.utils.componentWiseConsensusType(types, force_output_storage)
       local full_types = {}
       local letters = {}
       for i = 1,arity do
@@ -193,12 +193,12 @@ function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_num
       return load(code)(f, construct)
     end,
     return_type = function(types)
-      return vornmath.utils.componentWiseConsensusType(types, force_number)
+      return vornmath.utils.componentWiseConsensusType(types, force_output_storage)
     end
   }
 end
 
-function vornmath.utils.componentWiseConsensusType(types, force_number)
+function vornmath.utils.componentWiseConsensusType(types, force_output_storage)
   local shape, dim, storage
   for _, typename in ipairs(types) do
     local meta = vornmath.metatables[typename]
@@ -218,8 +218,8 @@ function vornmath.utils.componentWiseConsensusType(types, force_number)
       return nil
     end
   end
-  if force_number then
-    storage = 'number'
+  if force_output_storage then
+    storage = force_output_storage
   else
     storage = vornmath.utils.consensusStorage(types)
   end
@@ -704,7 +704,7 @@ local COMPONENT_LOOP_PARTS = {
   matrix = {'for col = 1,width do for row = 1,height do', 'end end'}
 }
 
-function vornmath.utils.componentWiseExpander(function_name, pattern, force_number)
+function vornmath.utils.componentWiseExpander(function_name, pattern, force_output_storage)
   return {
     signature_check = function(types)
       if #types < #pattern + 1 then return false end
@@ -716,7 +716,7 @@ function vornmath.utils.componentWiseExpander(function_name, pattern, force_numb
         table.insert(shortened_types, types[i])
         table.insert(scalar_types, meta.vm_storage)
       end
-      local return_type = vornmath.utils.componentWiseConsensusType(shortened_types, force_number)
+      local return_type = vornmath.utils.componentWiseConsensusType(shortened_types, force_output_storage)
       if return_type ~= types[#pattern + 1] then return false end
       table.insert(scalar_types, vornmath.metatables[return_type].vm_storage)
       if vornmath.utils.hasBakery(function_name, scalar_types) then
@@ -2027,6 +2027,13 @@ vornmath.bakeries.pow = {
 }
 
 vornmath.bakeries.eq = {
+  { -- eq(boolean, boolean)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'boolean', 'boolean'}),
+    create = function(types)
+      return function(x, y) return x == y end
+    end,
+    return_type = function(types) return 'boolean' end
+  },
   { -- eq(number, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
@@ -3193,8 +3200,8 @@ vornmath.bakeries.abs = {
     end,
     return_type = function(types) return 'number' end
   },
-  vornmath.utils.componentWiseExpander('abs', {'vector'}, true),
-  vornmath.utils.componentWiseReturnOnlys('abs', 1, true)
+  vornmath.utils.componentWiseExpander('abs', {'vector'}, 'number'),
+  vornmath.utils.componentWiseReturnOnlys('abs', 1, 'number')
 }
 
 vornmath.bakeries.sqabs = {
@@ -3227,8 +3234,8 @@ vornmath.bakeries.sqabs = {
     end,
     return_type = function(types) return 'number' end
   },
-  vornmath.utils.componentWiseExpander('sqabs', {'vector'}, true),
-  vornmath.utils.componentWiseReturnOnlys('sqabs', 1, true)
+  vornmath.utils.componentWiseExpander('sqabs', {'vector'}, 'number'),
+  vornmath.utils.componentWiseReturnOnlys('sqabs', 1, 'number')
 }
 
 vornmath.bakeries.sign = {
@@ -3567,6 +3574,34 @@ vornmath.bakeries.mix = {
   vornmath.utils.componentWiseReturnOnlys('mix', 3)
 }
 
+vornmath.bakeries.fma = {
+  { -- mix(scalar, scalar, scalar)
+    signature_check = function(types)
+      if #types < 4 then return false end
+      for i = 1,4 do
+        if vornmath.metatables[types[i]].vm_shape ~= 'scalar' then return false end
+      end
+      if not vornmath.utils.hasBakery('mul', {types[1], types[2]}) then return false end
+      local mul_type = vornmath.utils.returnType('mul', {types[1], types[2]})
+      if not vornmath.utils.hasBakery('add', {mul_type, types[3], types[4]}) then return false end
+      types[5] = nil
+      return true
+    end,
+    create = function(types)
+      local scratch_type = vornmath.utils.returnType('mul', {types[1], types[2]})
+      local mul = vornmath.utils.bake('mul', {types[1], types[2], scratch_type})
+      local add = vornmath.utils.bake('add', {scratch_type, types[3], types[4]})
+      local scratch = vornmath[scratch_type]()
+      return function(a,b,c,r)
+        scratch = mul(a,b,scratch)
+        return add(scratch,c,r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('fma', 3),
+  vornmath.utils.componentWiseExpander('fma', {'vector', 'vector', 'vector'})
+}
 
 vornmath.bakeries.frexp = {
   {
@@ -3841,7 +3876,7 @@ vornmath.bakeries.faceForward = {
       if first_meta.vm_shape ~= 'vector' or first_meta.vm_storage ~= 'number' then
         return false
       end
-      types[4] = nil
+      types[5] = nil
       return true
     end,
     create = function(types)
@@ -4222,6 +4257,55 @@ vornmath.bakeries.determinant = {
         return f(m, r)
       end
     end
+  }
+}
+
+vornmath.bakeries.equal = {
+  vornmath.utils.componentWiseExpander('eq', {'vector', 'vector'}, 'boolean'),
+  vornmath.utils.componentWiseReturnOnlys('equal', 2, 'boolean')
+}
+
+vornmath.bakeries.all = {
+  {
+    signature_check = function(types)
+      if #types < 1 then return false end
+      local first = vornmath.metatables[types[1]]
+      if first.vm_storage ~= 'boolean' or first.vm_shape ~= 'vector' then return false end
+      types[2] = nil
+      return true
+    end,
+    create = function(types)
+      local n = vornmath.metatables[types[1]].vm_dim
+      return function(v)
+        for i = 1,n do
+          if not v[i] then return false end
+        end
+        return true
+      end
+    end,
+    return_type = function(types) return 'boolean' end
+  }
+}
+
+vornmath.bakeries.any = {
+  {
+    signature_check = function(types)
+      if #types < 1 then return false end
+      local first = vornmath.metatables[types[1]]
+      if first.vm_storage ~= 'boolean' or first.vm_shape ~= 'vector' then return false end
+      types[2] = nil
+      return true
+    end,
+    create = function(types)
+      local n = vornmath.metatables[types[1]].vm_dim
+      return function(v)
+        for i = 1,n do
+          if v[i] then return true end
+        end
+        return false
+      end
+    end,
+    return_type = function(types) return 'boolean' end
   }
 }
 
