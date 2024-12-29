@@ -170,6 +170,10 @@ function testInverseSqrt()
     lu.assertEquals(vm.inversesqrt(vm.complex(0,2)), vm.complex(0.5,-0.5))
 end
 
+function testHypot()
+    lu.assertEquals(vm.hypot(3,4), 5)
+end
+
 function testArg()
     lu.assertEquals(vm.arg(1), 0)
     lu.assertEquals(vm.arg(-1), math.pi)
@@ -473,6 +477,16 @@ function testFmod()
     lu.assertEquals(vm.fmod(-5,3), -2)
 end
 
+function testIsinf()
+    lu.assertTrue(vm.isinf(math.huge))
+    lu.assertTrue(vm.isinf(vm.complex(0, math.huge)))
+    lu.assertFalse(vm.isinf(4))
+    lu.assertFalse(vm.isinf(vm.complex()))
+end
+function testIsnan()
+    lu.assertTrue(vm.isnan(0/0))
+    lu.assertFalse(vm.isnan(1/0))
+end
 
 function testFma()
     lu.assertEquals(vm.fma(2,3,5), 11)
@@ -562,8 +576,12 @@ function testDistance()
     lu.assertEquals(vm.distance(vm.vec2(3,0), vm.vec2(0,4)), 5)
 end
 
-function testComponentEqual()
-    lu.assertEquals(vm.equal(vm.vec3(1,2,3), vm.vec3(1,3,3)), vm.bvec3(true, false, true))
+function testComponentCompare()
+    local a = vm.vec3(1,2,3)
+    local b = vm.vec3(1,3,2)
+    lu.assertEquals(vm.equal(a, b), vm.bvec3(true, false, false))
+    lu.assertEquals(vm.greaterThan(a, b), vm.bvec3(false, false, true))
+    lu.assertEquals(vm.greaterThanEqual(a, b), vm.bvec3(true, false, true))
 end
 
 function testAnyAll()

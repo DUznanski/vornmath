@@ -779,6 +779,24 @@ vm.clamp(x, lo, hi) --> min(max(x, lo), hi)
 
 Finds the closest value to x that's also between lo and hi inclusive.
 
+#### `isnan`
+
+```lua
+vm.isnan(x) --> true if x is NaN.
+```
+
+check for NaN values; if applied to a complex or quat will be true if any
+component is NaN.
+
+#### `isinf`
+
+```lua
+vm.isinf(x) --> true if x is infinite.
+```
+
+check for infinite values; if applied to a complex or quat will be true if any
+component is infinite.
+
 #### `fma`
 
 ```lua
@@ -939,6 +957,22 @@ vm.equal(a,b) --> a bvec with true for equal components and false for unequal
 
 Componentwise vector equality comparison.  If you want a single boolean, check
 [eq](#eq) instead.
+
+### `greaterThan`
+
+```lua
+vm.greaterThan(a,b) --> a bvec with true for components where a[i] > b[i]
+```
+
+Componentwise vector comparison using >.
+
+### `greaterThanEqual`
+
+```lua
+vm.greaterThan(a,b) --> a bvec with true for components where a[i] >= b[i]
+```
+
+Componentwise vector comparison using >=.
 
 #### `any`
 

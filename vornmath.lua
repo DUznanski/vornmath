@@ -3026,6 +3026,7 @@ vornmath.bakeries.hypot = {
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
     create = function(types)
       return function(a,b)
+        -- TODO: big numbers
         return math.sqrt(a*a + b*b)
       end
     end,
@@ -3572,6 +3573,57 @@ vornmath.bakeries.mix = {
   vornmath.utils.componentWiseExpander('mix', {'vector', 'vector', 'vector'}),
   vornmath.utils.componentWiseExpander('mix', {'vector', 'vector', 'scalar'}),
   vornmath.utils.componentWiseReturnOnlys('mix', 3)
+}
+
+vornmath.bakeries.isnan = {
+  {
+    signature_check = function(types)
+      return vornmath.metatables[types[1]].vm_shape == 'scalar'
+    end,
+    create = function(types)
+      return function(n)
+        return n ~= n
+      end
+    end
+  },
+  vornmath.utils.componentWiseExpander('isnan', {'vector'}, 'boolean'),
+  vornmath.utils.componentWiseReturnOnlys('isnan', 1, 'boolean')
+}
+
+vornmath.bakeries.isinf = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
+    create = function(types)
+      local inf = math.huge
+      return function(n)
+        return n == inf or n == -inf
+      end
+    end
+  },
+  {
+  signature_check = vornmath.utils.clearingExactTypeCheck({'complex'}),
+    create = function(types)
+      local inf = math.huge
+      return function(n)
+        return n.a == inf or n.a == -inf or n.b == inf or n.b == -inf
+      end
+    end
+  },
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'quat'}),
+    create = function(types)
+      local inf = math.huge
+      return function(n)
+        return (n.a == inf or n.a == -inf or
+                n.b == inf or n.b == -inf or
+                n.c == inf or n.c == -inf or
+                n.d == inf or n.d == -inf)
+      end
+    end
+  },
+  vornmath.utils.componentWiseExpander('isinf', {'vector'}, 'boolean'),
+  vornmath.utils.componentWiseReturnOnlys('isinf', 1, 'boolean')
+
 }
 
 vornmath.bakeries.fma = {
@@ -4264,6 +4316,41 @@ vornmath.bakeries.equal = {
   vornmath.utils.componentWiseExpander('eq', {'vector', 'vector'}, 'boolean'),
   vornmath.utils.componentWiseReturnOnlys('equal', 2, 'boolean')
 }
+
+vornmath.bakeries.greaterThan = {
+  {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if types[1] ~= 'number' or types[2] ~= 'number' then return false end
+      types[3] = nil
+      return true
+    end,
+    create = function(types)
+      return function(a,b) return a > b end
+    end,
+    return_type = function(types) return 'boolean' end
+  },
+  vornmath.utils.componentWiseExpander('greaterThan', {'vector', 'vector'}, 'boolean'),
+  vornmath.utils.componentWiseReturnOnlys('greaterThan', 2, 'boolean')
+}
+
+vornmath.bakeries.greaterThanEqual = {
+  {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if types[1] ~= 'number' or types[2] ~= 'number' then return false end
+      types[3] = nil
+      return true
+    end,
+    create = function(types)
+      return function(a,b) return a >= b end
+    end,
+    return_type = function(types) return 'boolean' end
+  },
+  vornmath.utils.componentWiseExpander('greaterThanEqual', {'vector', 'vector'}, 'boolean'),
+  vornmath.utils.componentWiseReturnOnlys('greaterThanEqual', 2, 'boolean')
+}
+
 
 vornmath.bakeries.all = {
   {
