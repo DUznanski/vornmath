@@ -649,6 +649,7 @@ vm.abs(x[, y]) --> y = |x|
 
 Returns the absolute value, the positive real number with the same magnitude as
 the number given.
+
 #### `sqabs`
 
 ```lua
@@ -786,6 +787,17 @@ will select between `a` and `b` based on truth value; this helps to avoid
 problems with NaNs and infinities messing with results in cases where that is
 possible.
 
+#### `step`
+
+```lua
+vm.step(edge, x[, r]) --> r = 0 if x < edge, 1 otherwise
+```
+
+#### `smoothStep`
+
+```lua
+vm.smoothStep(lo, hi, x) --> 
+
 #### `isnan`
 
 ```lua
@@ -902,9 +914,10 @@ vm.refract(i, n, eta[, r]) --> r = ...complicated
 ```
 
 gives the direction of the resultant ray after refracting an incident ray with
-direction `i` through a surface with normal `n` and ratio (before / after) of
-indices of refraction `eta`.  if `eta > 1`, it is possible for the result to be
-total internal reflection: in this case, the function returns a zero vector.
+direction `i` through a surface with normal `n` and ratio (after / before) of
+indices of refraction `eta`.  if `eta > 1` and the angle of incidence is high
+enough, it is possible for the result to be total internal reflection: in this
+case, the function returns a zero vector.
 
 Both `n` and `i` must be unit vectors for this to work correctly.
 
@@ -977,16 +990,16 @@ vm.equal(a,b) --> a bvec with true for equal components and false for unequal
 Componentwise vector equality comparison.  If you want a single boolean, check
 [eq](#eq) instead.
 
-#### `equal`
+#### `notEqual`
 
 ```lua
-vm.equal(a,b) --> a bvec with true for unequal components and false for equal
+vm.notEqual(a,b) --> a bvec with true for unequal components and false for equal
 ```
 
 Componentwise vector inequality comparison.  If you want a single boolean, use
 `not eq(a,b)` instead.
 
-### `greaterThan`
+#### `greaterThan`
 
 ```lua
 vm.greaterThan(a,b) --> a bvec with true for components where a[i] > b[i]
@@ -994,7 +1007,7 @@ vm.greaterThan(a,b) --> a bvec with true for components where a[i] > b[i]
 
 Componentwise vector comparison using >.
 
-### `greaterThanEqual`
+#### `greaterThanEqual`
 
 ```lua
 vm.greaterThanEqual(a,b) --> a bvec with true for components where a[i] >= b[i]
@@ -1002,7 +1015,7 @@ vm.greaterThanEqual(a,b) --> a bvec with true for components where a[i] >= b[i]
 
 Componentwise vector comparison using >=.
 
-### `lessThan`
+#### `lessThan`
 
 ```lua
 vm.lessThan(a,b) --> a bvec with true for components where a[i] < b[i]
@@ -1010,7 +1023,7 @@ vm.lessThan(a,b) --> a bvec with true for components where a[i] < b[i]
 
 Componentwise vector comparison using <.
 
-### `lessThanEqual`
+#### `lessThanEqual`
 
 ```lua
 vm.lessThanEqual(a,b) --> a bvec with true for components where a[i] <= b[i]

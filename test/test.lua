@@ -430,7 +430,6 @@ function testAsinh()
     lu.assertAlmostEquals(vm.asinh(vm.complex(0,1)), vm.complex(0, math.pi / 2))
 end
 
-
 function testAsin()
     local i = vm.complex(0,1)
     lu.assertAlmostEquals(vm.asin(0), 0)
@@ -451,11 +450,24 @@ function testCos()
     lu.assertAlmostEquals(vm.cos(vm.complex(0,1)), vm.complex((1+e*e)/(2*e)))
 end
 
+function testSin()
+    local e = math.exp(1)
+    lu.assertEquals(vm.sin(0), 0)
+    lu.assertAlmostEquals(vm.sin(vm.complex(0,1)), vm.complex(0,(e*e-1)/(2*e)))
+end
+
 function testCosh()
     local e = math.exp(1)
     lu.assertEquals(vm.cosh(0), 1)
     lu.assertAlmostEquals(vm.cosh(1), (1+e*e)/(2*e))
     lu.assertAlmostEquals(vm.cosh(vm.complex(0,1)), vm.complex(math.cos(1)))
+end
+
+function testSinh()
+    local e = math.exp(1)
+    lu.assertEquals(vm.sinh(0), 0)
+    lu.assertEquals(vm.sinh(1), (e*e-1)/(2*e))
+    lu.assertEquals(vm.sinh(vm.complex(0,math.pi/2)), vm.complex(0,1))
 end
 
 function testDeg()
@@ -675,6 +687,45 @@ end
 function testRoundEven()
     lu.assertEquals(vm.roundEven(2.5), 2)
     lu.assertEquals(vm.roundEven(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,1,2,5))
+end
+
+function testStep()
+    lu.assertEquals(vm.step(5, vm.vec3(2,5,8)), vm.vec3(0,1,1))
+end
+
+function testSmoothStep()
+    lu.assertEquals(vm.smoothStep(4, 6, vm.vec4(3, 4.5, 5, 7)), vm.vec4(0, 5/32, 1/2, 1))
+end
+
+function testClamp()
+    lu.assertEquals(vm.clamp(3,4,5), 4)
+    lu.assertEquals(vm.clamp(4.5,4,5), 4.5)
+    lu.assertEquals(vm.clamp(6,4,5), 5)
+end
+
+function testSqrt()
+    lu.assertEquals(vm.sqrt(4), 2)
+    lu.assertEquals(vm.sqrt(vm.complex(-4)), vm.complex(0,2))
+    lu.assertEquals(vm.sqrt(vm.complex(0,2)), vm.complex(1,1))
+end
+
+function testTan()
+    local e = math.exp(1)
+    lu.assertEquals(vm.tan(0), 0)
+    lu.assertAlmostEquals(vm.tan(math.pi / 4), 1)
+    lu.assertAlmostEquals(vm.tan(vm.complex(0,1)), vm.complex(0, (e - 1/e)/(e + 1/e)))
+end
+
+function testTanh()
+    local e = math.exp(1)
+    lu.assertEquals(vm.tanh(0), 0)
+    lu.assertAlmostEquals(vm.tanh(1), (e - 1/e)/(e + 1/e))
+    lu.assertAlmostEquals(vm.tanh(vm.complex(0,math.pi/4)), vm.complex(0, math.sqrt(0.5)))
+end
+
+function testTrunc()
+    lu.assertEquals(vm.trunc(1.2), 1)
+    lu.assertEquals(vm.trunc(-1.2), -1)
 end
 
 os.exit(lu.LuaUnit.run())

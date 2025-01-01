@@ -2315,8 +2315,8 @@ vornmath.bakeries.sin = {
       local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(z, r)
         r = fill(r, -z.b, z.a)
-        r = sinh(r)
-        return fill(r, z.b, -z.a)
+        r = sinh(r,r)
+        return fill(r, r.b, -r.a)
       end
     end
   },
@@ -2360,8 +2360,8 @@ vornmath.bakeries.tan = {
       local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(z, r)
         r = fill(r, -z.b, z.a)
-        r = tanh(r)
-        return fill(r, z.b, -z.a)
+        r = tanh(r,r)
+        return fill(r, r.b, -r.a)
       end
     end
   },
@@ -3481,7 +3481,7 @@ vornmath.bakeries.clamp = {
       local min = math.min
       local max = math.max
       return function(x, lo, hi)
-        return min(max(x, lo, hi))
+        return min(max(x, lo), hi)
       end
     end,
     return_type = function(types) return 'number' end
@@ -3589,6 +3589,42 @@ vornmath.bakeries.mix = {
       return vornmath.utils.componentWiseConsensusType({types[1], types[2]})
     end
   }
+}
+
+vornmath.bakeries.step = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
+    create = function(types)
+      return function(edge,x)
+        if x < edge then
+          return 0
+        else
+          return 1
+        end
+      end
+    end,
+    return_type = function(types) return 'number' end
+  },
+  vornmath.utils.componentWiseExpander('step', {'scalar', 'vector'}),
+  vornmath.utils.componentWiseExpander('step', {'vector', 'vector'}),
+  vornmath.utils.componentWiseReturnOnlys('step', 2)
+}
+
+vornmath.bakeries.smoothStep = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number'}),
+    create = function(types)
+      local clamp = vornmath.utils.bake('clamp', {'number', 'number', 'number'})
+      return function(lo, hi, x)
+        local t = clamp((x-lo)/(hi-lo), 0, 1)
+        return t * t * (3 - 2 * t)
+      end
+    end,
+    return_type = function(types) return 'number' end
+  },
+  vornmath.utils.componentWiseExpander('smoothStep', {'scalar', 'scalar', 'vector'}),
+  vornmath.utils.componentWiseExpander('smoothStep', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseReturnOnlys('smoothStep', 3)
 }
 
 vornmath.bakeries.isnan = {
@@ -4479,7 +4515,7 @@ vornmath.bakeries.notEqual = {
       local eq = vornmath.utils.bake('eq', types)
       return function(a,b) return not eq(a,b) end
     end,
-    return_type = function(types) return boolean end
+    return_type = function(types) return 'boolean' end
   },
   vornmath.utils.componentWiseExpander('notEqual', {'vector', 'vector'}, 'boolean'),
   vornmath.utils.componentWiseReturnOnlys('notEqual', 2, 'boolean')
