@@ -8,6 +8,7 @@ local radius = 0.075
 local mandelbrot = {}
 
 function mandelbrot:enter()
+  love.graphics.setDepthMode('less',true)
   local w, h = love.graphics.getDimensions()
   self.my_canvas = love.graphics.newCanvas(w*2, h*2)
   local small_side = vm.min(w, h)
@@ -131,6 +132,7 @@ function mandelbrot:keypressed(key, scancode, keyrepeat)
 end
 
 function mandelbrot:exit()
+  love.graphics.setDepthMode('always',false)
 end
 
 return mandelbrot

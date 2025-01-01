@@ -3,6 +3,7 @@ local vm = require('vornmath')
 local tesseract = {}
 
 function tesseract:enter()
+    love.graphics.setDepthMode('less',true)
     local colors = {
         {0xff/255, 0x9c/255, 0x8e/255, 1},
         {0xff/255, 0xd9/255, 0x7b/255, 1},
@@ -158,6 +159,7 @@ function tesseract:draw()
 end
 
 function tesseract:exit()
+    love.graphics.setDepthMode('always',false)
     love.graphics.setShader()
 end
 
