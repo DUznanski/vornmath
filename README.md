@@ -571,14 +571,6 @@ vm.log10(x[, y]) --> y = log_10 x
 
 Computes the base-10 logarithm.
 
-#### `log2`
-
-```lua
-vm.log2(x[, y]) --> y = log_2 x
-```
-
-Computes the base-2 logarithm.
-
 #### `sqrt`
 
 ```lua
@@ -761,7 +753,8 @@ denominator.
 vm.min(x, y[, result]) --> smaller of x and y
 ```
 
-Finds the minimum of the two inputs.
+Finds the minimum of the two inputs. **Unlike `math.min`, this only accepts two
+inputs!**
 
 #### `max`
 
@@ -769,7 +762,8 @@ Finds the minimum of the two inputs.
 vm.max(x, y[, result]) --> larger of x and y
 ```
 
-Finds the maximum of the two inputs.
+Finds the maximum of the two inputs. **Unlike `math.max`, this only accepts two
+inputs!**
 
 #### `clamp`
 
@@ -778,6 +772,19 @@ vm.clamp(x, lo, hi) --> min(max(x, lo), hi)
 ```
 
 Finds the closest value to x that's also between lo and hi inclusive.
+
+#### `mix`
+
+```lua
+vm.mix(a, b, t[, r]) --> r = (1-t)*a + t*b
+vm.mix(a, b, flags[, r]) --> r[i] = b[i] if flags[i] is true, a[i] otherwise
+```
+
+Linear or boolean interpolation: if `t` is a scalar or non-boolean vector, it
+will do `(1-t)*a + t*b` componentwise.  If instead it's a boolean vector, it
+will select between `a` and `b` based on truth value; this helps to avoid
+problems with NaNs and infinities messing with results in cases where that is
+possible.
 
 #### `isnan`
 
@@ -958,6 +965,15 @@ vm.equal(a,b) --> a bvec with true for equal components and false for unequal
 Componentwise vector equality comparison.  If you want a single boolean, check
 [eq](#eq) instead.
 
+#### `equal`
+
+```lua
+vm.equal(a,b) --> a bvec with true for unequal components and false for equal
+```
+
+Componentwise vector inequality comparison.  If you want a single boolean, use
+`not eq(a,b)` instead.
+
 ### `greaterThan`
 
 ```lua
@@ -969,15 +985,31 @@ Componentwise vector comparison using >.
 ### `greaterThanEqual`
 
 ```lua
-vm.greaterThan(a,b) --> a bvec with true for components where a[i] >= b[i]
+vm.greaterThanEqual(a,b) --> a bvec with true for components where a[i] >= b[i]
 ```
 
 Componentwise vector comparison using >=.
 
+### `lessThan`
+
+```lua
+vm.lessThan(a,b) --> a bvec with true for components where a[i] < b[i]
+```
+
+Componentwise vector comparison using <.
+
+### `lessThanEqual`
+
+```lua
+vm.lessThanEqual(a,b) --> a bvec with true for components where a[i] <= b[i]
+```
+
+Componentwise vector comparison using <=.
+
 #### `any`
 
 ```lua
-vm.any(v) --> logical or of all components
+vm.any(v) --> logical OR of all components
 ```
 
 Returns `true` if any of the components of `v` are `true`; otherwise, `false`.
@@ -985,10 +1017,36 @@ Returns `true` if any of the components of `v` are `true`; otherwise, `false`.
 #### `all`
 
 ```lua
-vm.all(v) --> logical and of all components
+vm.all(v) --> logical AND of all components
 ```
 
 Returns `true` if all of the components of `v` are `true`; otherwise, `false`.
+
+#### `logicalAnd`
+
+```lua
+vm.logicalAnd(a,b) --> componentwise logical AND
+```
+
+Returns `true` for each component that is `true` in *both* a and b.  This does
+not short-circuit: both inputs are evaluated regardless of result.
+
+#### `logicalOr`
+
+```lua
+vm.logicalOr(a,b) --> componentwise logical OR
+```
+
+Returns `true` for each component that is `true` in *either* a and b.  This does
+not short-circuit: both inputs are evaluated regardless of result.
+
+#### `logicalNot`
+
+```lua
+vm.logicalNot(a) --> componentwise logical NOT
+```
+
+Returns `true` for each component that is `false`.
 
 ## Technical Details
 

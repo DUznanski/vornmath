@@ -582,6 +582,9 @@ function testComponentCompare()
     lu.assertEquals(vm.equal(a, b), vm.bvec3(true, false, false))
     lu.assertEquals(vm.greaterThan(a, b), vm.bvec3(false, false, true))
     lu.assertEquals(vm.greaterThanEqual(a, b), vm.bvec3(true, false, true))
+    lu.assertEquals(vm.lessThan(a, b), vm.bvec3(false, true, false))
+    lu.assertEquals(vm.lessThanEqual(a, b), vm.bvec3(true, true, false))
+    lu.assertEquals(vm.notEqual(a, b), vm.bvec3(false, true, true))
 end
 
 function testAnyAll()
@@ -594,6 +597,51 @@ function testAnyAll()
     lu.assertTrue(vm.all(a))
     lu.assertFalse(vm.all(b))
     lu.assertFalse(vm.all(c))
+end
+
+function testLogicalConnectives()
+    local a = vm.bvec4(false,false,true,true)
+    local b = vm.bvec4(false,true,false,true)
+    lu.assertEquals(vm.logicalAnd(a,b), vm.bvec4(false, false, false, true))
+    lu.assertEquals(vm.logicalOr(a,b), vm.bvec4(false, true, true, true))
+    lu.assertEquals(vm.logicalNot(a), vm.bvec4(true, true, false, false))
+end
+
+function testMatrixCompMult()
+    local a = vm.mat2(1,1,2,2)
+    local b = vm.mat2(1,3,1,3)
+    lu.assertEquals(vm.matrixCompMult(a,b), vm.mat2(1,3,2,6))
+end
+
+function testMinMax()
+    local a = vm.vec3(1,2,3)
+    local b = vm.vec3(1,3,2)
+    lu.assertEquals(vm.min(a,b), vm.vec3(1,2,2))
+    lu.assertEquals(vm.max(a,b), vm.vec3(1,3,3))
+end
+
+function testMix()
+    local a,b,t = 0,5,0.8
+    lu.assertAlmostEquals(vm.mix(a,b,t), 4)
+    lu.assertEquals(vm.mix(vm.vec2(1,0), vm.vec2(0,1), 0.75), vm.vec2(0.25,0.75))
+    lu.assertEquals(vm.mix(vm.vec3(1,2,3), vm.vec3(4,5,6), vm.bvec3(true, false, true)), vm.vec3(4,2,6))
+end
+
+function testMod()
+    lu.assertEquals(vm.vec3(7,11,15) % 5, vm.vec3(2,1,0))
+end
+
+function testModf()
+    local w,f = vm.modf(vm.vec3(1.7,4.6,-3.2))
+    lu.assertEquals(w, vm.vec3(1,4,-3))
+    lu.assertAlmostEquals(f, vm.vec3(0.7,0.6,-0.2),1e-15) -- apparently the default isn't accurate enough?
+end
+
+function testNumber()
+    lu.assertEquals(vm.number(), 0)
+    lu.assertEquals(vm.number(3), 3)
+    lu.assertEquals(vm.number('0x40'), 64)
+    lu.assertEquals(vm.number('123',4), 27)
 end
 
 os.exit(lu.LuaUnit.run())
