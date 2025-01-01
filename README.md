@@ -902,9 +902,21 @@ vm.refract(i, n, eta[, r]) --> r = ...complicated
 ```
 
 gives the direction of the resultant ray after refracting an incident ray with
-direction `i` through a surface with normal `n` and ratio of indices of
-refraction `eta`.  if `eta > 1`, it is possible for the result to be total
-internal reflection: in this case, the function returns a zero vector.
+direction `i` through a surface with normal `n` and ratio (before / after) of
+indices of refraction `eta`.  if `eta > 1`, it is possible for the result to be
+total internal reflection: in this case, the function returns a zero vector.
+
+Both `n` and `i` must be unit vectors for this to work correctly.
+
+The actual formula for refraction is
+
+$$\begin{aligned}
+k &= 1 - \eta^2\left(1-\left(n\cdot i\right)^2\right)\\
+r &= \begin{cases}
+0 &k < 0\\
+\eta i - \left(\eta n\cdot i + \sqrt k\right)n&\text{otherwise}
+\end{cases}
+\end{aligned}$$
 
 ### Matrix functions
 
@@ -1196,7 +1208,7 @@ expand the abilities of a function in common ways.
 #### ComponentWiseReturnOnlys
 
 ```lua
-vm.utils.componentWiseReturnOnlys(function_name, arity) --> bakery
+vm.utils.componentWiseReturnOnlys(function_name, arity, forced_storage) --> bakery
 ```
 
 Most vornmath functions accept an "out variable" that it fills in with the

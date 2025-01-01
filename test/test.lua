@@ -644,4 +644,37 @@ function testNumber()
     lu.assertEquals(vm.number('123',4), 27)
 end
 
+function testOuterProduct()
+    local a = vm.vec2(1,2)
+    local b = vm.vec3(1,2,3)
+    lu.assertEquals(vm.outerProduct(a,b), vm.mat3x2(1,2,2,4,3,6))
+end
+
+function testRad()
+    lu.assertAlmostEquals(vm.rad(vm.vec3(0,60,90)), vm.vec3(0,math.pi/3, math.pi/2))
+end
+
+function testReflect()
+    local ray = vm.vec2(-0.8,0.6)
+    local x_mirror = vm.vec2(1,0)
+    local xy_mirror = vm.normalize(vm.vec2(1,1))
+    lu.assertAlmostEquals(vm.reflect(ray, x_mirror), vm.vec2(0.8,0.6))
+    lu.assertAlmostEquals(vm.reflect(ray, xy_mirror), vm.vec2(-0.6,0.8))
+end
+
+function testRefract()
+    local index = 1.2
+    lu.assertAlmostEquals(vm.refract(vm.vec2(0.5,math.sqrt(3)/2), vm.vec2(0,-1), 1.2), vm.vec2(0.6,0.8))
+end
+
+function testRound()
+    lu.assertEquals(vm.round(2.5), 3)
+    lu.assertEquals(vm.round(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,1,2,5))
+end
+
+function testRoundEven()
+    lu.assertEquals(vm.roundEven(2.5), 2)
+    lu.assertEquals(vm.roundEven(vm.vec4(1,1.2,2,4.9)), vm.vec4(1,1,2,5))
+end
+
 os.exit(lu.LuaUnit.run())

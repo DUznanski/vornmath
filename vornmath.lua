@@ -4101,9 +4101,9 @@ vornmath.bakeries.outerProduct = {
       local left = vornmath.metatables[types[1]]
       local right = vornmath.metatables[types[2]]
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
-      local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
+      local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim, left.vm_dim}, consensus_storage)
       local make = vornmath.utils.bake(result_type, {})
-      local action = vornmath.utils.bake('mul', {types[1], types[2], result_type})
+      local action = vornmath.utils.bake('outerProduct', {types[1], types[2], result_type})
       return function(a, b)
         local result = make()
         return action(a, b, result)
