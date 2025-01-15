@@ -5,6 +5,7 @@ local menu_text = [[
 2. tesseract
 3. geodesic
 4. bezier
+5. prism
 ]]
 
 function demo:enter()
@@ -28,6 +29,7 @@ function demo:keypressed(key, scancode, keyrepeat)
     if scancode == '2' then change_state("tesseract") end
     if scancode == '3' then change_state("geodesic") end
     if scancode == '4' then change_state("bezier") end
+    if scancode == '5' then change_state("prism") end
 end
 
 return demo

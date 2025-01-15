@@ -5,21 +5,22 @@ states.tesseract = require('demo.tesseract')
 states.mandelbrot = require('demo.mandelbrot')
 states.geodesic = require('demo.geodesic')
 states.bezier = require('demo.bezier')
+states.prism = require('demo.prism')
 
 local state = "demo"
 
 function change_state(new_state)
-    states[state]:exit()
+    if states[state].exit then states[state]:exit() end
     state = new_state
-    states[state]:enter()
+    if states[state].enter then states[state]:enter() end
 end
 
 function love.update(dt)
-    states[state]:update(dt)
+    if states[state].update then states[state]:update(dt) end
 end
 
 function love.draw()
-    states[state]:draw()
+    if states[state].draw then states[state]:draw() end
 end
 
 function love.keypressed(key, scancode, keyrepeat)

@@ -4497,6 +4497,8 @@ vornmath.bakeries.inverse = {
 
 }
 
+-- vector relational functions
+
 vornmath.bakeries.equal = {
   vornmath.utils.componentWiseExpander('eq', {'vector', 'vector'}, 'boolean'),
   vornmath.utils.componentWiseReturnOnlys('equal', 2, 'boolean')

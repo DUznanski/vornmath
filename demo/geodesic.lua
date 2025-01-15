@@ -1,6 +1,6 @@
 local vm = require('vornmath')
 
-local DETAIL = 10 -- the size of the sphere: the number of the 
+local DETAIL = 10 -- the size of the sphere: the number of hexagons along a line between big corners
 local STEPS = DETAIL * 3
 local WIDTH = STEPS + 1
 local WHOLE_FACE_SIZE = WIDTH * (WIDTH + 1) / 2
@@ -17,7 +17,7 @@ local function index_from_coordinates(face, u, v)
     return (face - 1) * WHOLE_FACE_SIZE + v_offset + u + 1
 end
 
--- build a fully annotated vertex: position, normal, uv.
+-- build a fully annotated vertex: position (4 things), normal (3), uv (3).
 
 local function annotated_vertex(corner, center)
     return {
@@ -28,8 +28,8 @@ local function annotated_vertex(corner, center)
 end
 
 -- put together the vertex indices for a triangle in the mesh.
--- we use a base and offset because we're making pieces of the mesh in clusters
--- filling in bunches of centered hexagons
+-- we're making the mesh in little hexagonal clusters that use the same 7 vertices
+-- so it's easier to just describe things as offsets from the start of the cluster
 
 local function index_triangle(t, base, offset_1, offset_2)
     table.insert(t, base)
@@ -38,6 +38,9 @@ local function index_triangle(t, base, offset_1, offset_2)
 end
 
 function geodesic:enter()
+    love.graphics.setDepthMode('less',true)
+    -- first we build the big icosahedron.
+
     local p = vm.normalize(vm.vec3(1, PHI, 0))
     local negate_x = vm.vec3(-1,1,1)
     local negate_y = vm.vec3(1,-1,1)
@@ -150,6 +153,7 @@ function geodesic:enter()
                 local starting_index = #self.annotated_vertices
                 local success_count = 0
                 local corner
+                -- if I'm not attached to a wall, I get the triangle "towards" that wall
                 if w > 0 then
                     corner = self.vertices[index_from_coordinates(face_id, u+1, v)]
                     table.insert(self.annotated_vertices, annotated_vertex(corner, center))
@@ -174,13 +178,16 @@ function geodesic:enter()
                 for i = 1, success_count * 2 - 1, 2 do
                     index_triangle(self.vertex_indices, starting_index, i, i+1)
                 end
+                -- if I'm distant from *two* walls, then I also get a triangle in between the two
                 if success_count == 2 then
-                    if u > 0 then -- the two that we get are adjacent without crossing the loop
+                    -- but which "side" of the two existing triangles I use for the third depends on which two triangles I have
+                    if u > 0 then -- this one is in the middle of the three so I'll get the one that's "inside"
                         index_triangle(self.vertex_indices, starting_index, 2, 3)
-                    else
+                    else -- otherwise it's the outer two and so I go around the "outside"
                         index_triangle(self.vertex_indices, starting_index, 4, 1)
                     end
                 end
+                -- and if I am distant from all three I get all three between triangles.
                 if success_count == 3 then
                     index_triangle(self.vertex_indices, starting_index, 2, 3)
                     index_triangle(self.vertex_indices, starting_index, 4, 5)
@@ -228,6 +235,7 @@ end
 
 function geodesic:exit()
     love.graphics.setShader()
+    love.graphics.setDepthMode('always',false)
 end
 
 function geodesic:keypressed() end
