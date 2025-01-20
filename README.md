@@ -796,7 +796,15 @@ vm.step(edge, x[, r]) --> r = 0 if x < edge, 1 otherwise
 #### `smoothStep`
 
 ```lua
-vm.smoothStep(lo, hi, x) --> 
+vm.smoothStep(lo, hi, x) --> cubic easing from 0 to 1 as x goes from lo to hi
+```
+
+Cubic easing from lo to hi:
+
+$$\begin{aligned}
+t &= \frac{x-lo}{hi-lo}\\
+y &= 3t^2-2t^3
+\end{aligned}$$
 
 #### `isnan`
 

@@ -62,7 +62,7 @@ function prism:draw()
     )
     love.graphics.setBlendMode('add')
     for i = 0,LINES do
-        t = i / LINES
+        local t = i / LINES
         local wavelength = vm.mix(VIOLET_END, RED_END, t)
         local rainbow_target = vm.round(vm.mix(0, rainbow_width - 1, t))
         love.graphics.setColor(vm.vec4(rainbow:getPixel(rainbow_target, 0))/3)
