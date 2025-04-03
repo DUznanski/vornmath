@@ -603,11 +603,13 @@ function vornmath.utils.quatOperatorFromComplex(funcname)
   return {
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
-      local decompose = vornmath.axisDecompose_quat
+      local decompose = vornmath.utils.bake('axisDecompose',{'quat', 'complex', 'vec3'})
       local complex_function = vornmath.utils.bake(funcname, {'complex', 'complex'})
-      local fill = vornmath.fill_quat_complex_vec3
+      local fill = vornmath.utils.bake('fill',{'quat', 'complex', 'vec3'})
+      local cpx = vornmath.complex()
+      local axis = vornmath.vec3()
       return function(z, result)
-        local cpx, axis = decompose(z)
+        cpx, axis = decompose(z, cpx, axis)
         cpx = complex_function(cpx, cpx)
         return fill(result, cpx, axis)
       end
@@ -676,7 +678,7 @@ function vornmath.utils.matrixNilConstructor(storage,w,h)
       local vectype = prefix .. 'vec' .. h
       local vec = vornmath.utils.bake(vectype, {})
       local identity_diagonal_length = math.min(w, h)
-      local fill = vornmath.implicit_conversions[storage]['number'][2]
+      local fill = vornmath.utils.bake('fill', {storage, 'number'})
       return function()
         local result = setmetatable({}, mt)
         for i = 1,w do
@@ -1144,20 +1146,21 @@ vornmath.bakeries.fill = {
       if first.vm_shape ~= 'vector' then
         return false
       end
-      local casts = vornmath.implicit_conversions[first.vm_storage]
       local d = first.vm_dim
       local input_count = 0
+      if vornmath.utils.consensusStorage(types) ~= first.vm_storage then return false end
       for i = 2,#types do
         local t = types[i]
         if input_count >= d then return false end -- I have a pattern that's too long
         local mt = vornmath.metatables[t]
-        if not casts[mt.vm_storage] then return false end
         if mt.vm_shape == 'scalar' then
           input_count = input_count + 1
         elseif mt.vm_shape == 'vector' then
           input_count = input_count + mt.vm_dim
         elseif mt.vm_shape == 'matrix' then
           input_count = input_count + mt.vm_dim[1] * mt.vm_dim[2]
+        else
+          return false
         end
       end
       return input_count >= d
@@ -1168,17 +1171,17 @@ vornmath.bakeries.fill = {
       local full_inputs = {}
       local first = vornmath.metatables[types[1]]
       local d = first.vm_dim
-      local implicit_casts = vornmath.implicit_conversions[first.vm_storage]
+      local casts = {}
       local cast_assigns = {}
-      for name,_ in pairs(implicit_casts) do
-        table.insert(cast_assigns, 'local fill_'.. name .. ' = casts.' .. name .. '[2]')
-      end
       local idx = 1
       for i = 2,#types do
         local t = types[i]
         local letter = LETTERS[i] 
         table.insert(arguments, letter)
         local tmt = vornmath.metatables[t]
+        if not casts[tmt.vm_storage] then
+          casts[tmt.vm_storage] = vornmath.utils.bake('fill', {first.vm_storage, tmt.vm_storage})
+        end
         if tmt.vm_shape == 'scalar' then
           -- a scalar goes in directly.
           table.insert(full_inputs, 'target[' .. idx .. '] = fill_' .. tmt.vm_storage .. '(target[' .. idx .. '], ' .. letter .. ')')
@@ -1200,6 +1203,9 @@ vornmath.bakeries.fill = {
           end
         end
       end
+      for name,_ in pairs(casts) do
+        table.insert(cast_assigns, 'local fill_'.. name .. ' = casts.' .. name)
+      end
       local cast_glom = table.concat(cast_assigns, '\n')
       local letter_glom = table.concat(arguments, ', ')
       local inputs_glom = table.concat(full_inputs, '\n')
@@ -1212,7 +1218,7 @@ vornmath.bakeries.fill = {
           return target
         end
       ]]
-      return load(code)(implicit_casts)
+      return load(code)(casts)
     end,
     return_type = function(types) return types[1] end
   },
@@ -1285,7 +1291,7 @@ vornmath.bakeries.fill = {
       local second = vornmath.metatables[types[2]]
       if first.vm_shape ~= 'matrix' then return false end
       if second.vm_shape ~= 'matrix' then return false end
-      if not vornmath.implicit_conversions[first.vm_storage][second.vm_storage] then return false end
+      if vornmath.utils.consensusStorage(types) ~= first.vm_storage then return false end
       if not types[3] then types[3] = 'nil' end
       return types[3] == 'nil'
     end,
@@ -1293,8 +1299,8 @@ vornmath.bakeries.fill = {
       local first = vornmath.metatables[types[1]]
       local second = vornmath.metatables[types[2]]
       local nilfill = vornmath.utils.bake('fill', {first.vm_storage})
-      local valfill = vornmath.implicit_conversions[first.vm_storage][second.vm_storage][2]
-      local numfill = vornmath.implicit_conversions[first.vm_storage]['number'][2]
+      local valfill = vornmath.utils.bake('fill', {first.vm_storage, second.vm_storage})
+      local numfill = vornmath.utils.bake('fill', {first.vm_storage, 'number'})
       local dest_dim = first.vm_dim
       local src_dim = second.vm_dim
       local dest_w, dest_h = dest_dim[1], dest_dim[2]
@@ -1323,14 +1329,14 @@ vornmath.bakeries.fill = {
       if first.vm_shape ~= 'matrix' then
         return false
       end
-      local casts = vornmath.implicit_conversions[first.vm_storage]
+
+      if vornmath.utils.consensusStorage(types) ~= first.vm_storage then return false end
       local d = first.vm_dim[1] * first.vm_dim[2]
       local input_count = 0
       for i = 2,#types do
         local t = types[i]
         if input_count >= d then return false end -- I have a pattern that's too long
         local mt = vornmath.metatables[t]
-        if not casts[mt.vm_storage] then return false end
         if mt.vm_shape == 'scalar' then
           input_count = input_count + 1
         elseif mt.vm_shape == 'vector' then
@@ -1348,17 +1354,17 @@ vornmath.bakeries.fill = {
       local first = vornmath.metatables[types[1]]
       local w,h = first.vm_dim[1], first.vm_dim[2]
       local d = w * h
-      local implicit_casts = vornmath.implicit_conversions[first.vm_storage]
+      local casts = {}
       local cast_assigns = {}
-      for name,_ in pairs(implicit_casts) do
-        table.insert(cast_assigns, 'local fill_'.. name .. ' = casts.' .. name .. '[2]')
-      end
       local x,y = 1,1
       for i = 2,#types do
         local t = types[i]
         local letter = LETTERS[i]
         table.insert(arguments, letter)
         local tmt = vornmath.metatables[t]
+        if not casts[tmt.vm_storage] then
+          casts[tmt.vm_storage] = vornmath.utils.bake('fill', {first.vm_storage, tmt.vm_storage})
+        end
         if tmt.vm_shape == 'scalar' then
           -- a scalar goes in directly.
           table.insert(full_inputs, 'target[' .. x .. '][' .. y .. '] = fill_' .. tmt.vm_storage .. '(target[' .. x .. '][' .. y .. '], ' .. letter .. ')')
@@ -1380,6 +1386,9 @@ vornmath.bakeries.fill = {
            end
         end
       end
+      for name,_ in pairs(casts) do
+        table.insert(cast_assigns, 'local fill_'.. name .. ' = casts.' .. name)
+      end
       local cast_glom = table.concat(cast_assigns, '\n')
       local letter_glom = table.concat(arguments, ', ')
       local inputs_glom = table.concat(full_inputs, '\n')
@@ -1392,7 +1401,7 @@ vornmath.bakeries.fill = {
           return target
         end
       ]]
-      return load(code)(implicit_casts)
+      return load(code)(casts)
     end,
     return_type = function(types) return types[1] end
   },
@@ -1439,7 +1448,7 @@ vornmath.bakeries.add = {
   { -- add(complex, complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a + y.a, x.b + y.b)
       end
@@ -1449,7 +1458,7 @@ vornmath.bakeries.add = {
   { -- add(quat, quat, quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a + y.a, x.b + y.b, x.c + y.c, x.d + y.d)
       end
@@ -1477,7 +1486,7 @@ vornmath.bakeries.unm = {
   { -- unm(complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, result)
         return fill(result, -x.a, -x.b)
       end
@@ -1487,7 +1496,7 @@ vornmath.bakeries.unm = {
   { -- unm(quat, quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, result)
         return fill(result, -x.a, -x.b, -x.c, -x.d)
       end
@@ -1510,7 +1519,7 @@ vornmath.bakeries.sub = {
   { -- sub(complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a - y.a, x.b - y.b)
       end
@@ -1520,7 +1529,7 @@ vornmath.bakeries.sub = {
   { -- sub(quat, quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a - y.a, x.b - y.b, x.c - y.c, x.d - y.d)
       end
@@ -1548,7 +1557,7 @@ vornmath.bakeries.mul = {
   { -- mul(complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a * y.a - x.b * y.b, x.a * y.b + x.b * y.a)
       end
@@ -1558,7 +1567,7 @@ vornmath.bakeries.mul = {
   { -- mul(quat, quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a * y.a - x.b * y.b - x.c * y.c - x.d * y.d,
                             x.a * y.b + x.b * y.a + x.c * y.d - x.d * y.c,
@@ -1884,7 +1893,7 @@ vornmath.bakeries.div = {
   { -- div(complex, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'number', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a / y, x.b / y)
       end
@@ -1894,7 +1903,7 @@ vornmath.bakeries.div = {
   { -- div(quat, number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'number', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, y, result)
         return fill(result, x.a / y, x.b / y, x.c / y, x.d / y)
       end
@@ -1972,16 +1981,17 @@ vornmath.bakeries.pow = {
   { -- pow(complex, complex, complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
-      local log = vornmath.log_complex_nil_nil
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
+      local log = vornmath.utils.bake('log', {'complex', 'nil', 'complex'})
       local exp = math.exp
       local sin = math.sin
       local cos = math.cos
-      local mul = vornmath.mul_complex_complex
+      local mul = vornmath.utils.bake('mul', {'complex', 'complex', 'complex'})
+      local w = vornmath.complex()
       return function(x, y, result)
         if y.a == 0 and y.b == 0 then return fill(result, 1, 0) end
         if x.a == 0 and x.b == 0 then return fill(result, 0, 0) end
-        local w = log(x)
+        w = log(x, nil, w)
         w = mul(w, y, w)
         local size = exp(w.a)
         return fill(result, size * cos(w.b), size * sin(w.b))
@@ -1992,27 +2002,29 @@ vornmath.bakeries.pow = {
   { -- pow(quat, quat, quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat','quat','quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
-      local decompose = vornmath.axisDecompose_quat
-      local log = vornmath.log_complex_nil_complex
-      local exp = vornmath.exp_quat_quat
-      local mul = vornmath.mul_quat_quat_quat
-      local regenerate = vornmath.quat_complex_vec3
-      local eq = vornmath.eq_quat_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
+      local decompose = vornmath.utils.bake('axisDecompose', {'quat', 'complex', 'vec3'})
+      local log = vornmath.utils.bake('log', {'complex', 'nil', 'complex'})
+      local exp = vornmath.utils.bake('exp', {'quat', 'quat'})
+      local mul = vornmath.utils.bake('mul', {'quat','quat', 'quat'})
+      local regenerate = vornmath.utils.bake('fill', {'quat', 'complex', 'vec3'})
+      local eq = vornmath.utils.bake('eq', {'quat', 'number'})
+      local cpx = vornmath.complex()
+      local axis = vornmath.vec3()
+      local _ = vornmath.complex()
       return function(base, exponent, result)
         if eq(exponent, 0) then return fill(result, 1, 0, 0, 0) end
         if eq(base, 0) then return fill(result, 0, 0, 0, 0) end
-        local c, a = decompose(base)
-        if c.b == 0 then
-          local _
-          _, a = decompose(exponent)
+        cpx, axis = decompose(base, cpx, axis)
+        if cpx.b == 0 then
+          _, axis = decompose(exponent, _, axis)
           -- since log can come up with complex results for real inputs,
           -- I want to make sure that it does so in line with the other quaternion.
           -- this is how we do that.
         end
-        c = log(c, nil, c)
-        local logbase = regenerate(c, a)
-        result = mul(logbase, exponent, result)
+        cpx = log(cpx, nil, cpx)
+        result = regenerate(result, cpx, axis)
+        result = mul(result, exponent, result)
         result = exp(result, result)
         return result
       end
@@ -2793,7 +2805,7 @@ vornmath.bakeries.exp = {
   { -- exp(complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex','complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       local sin = math.sin
       local cos = math.cos
       local exp = math.exp
@@ -2852,10 +2864,10 @@ vornmath.bakeries.log = {
   { -- log(complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'nil', 'complex'}),
     create = function(types)
-      local arg = vornmath.arg_complex
-      local abs = vornmath.abs_complex
+      local arg = vornmath.utils.bake('arg', {'complex'})
+      local abs = vornmath.utils.bake('abs', {'complex'})
       local log = math.log
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(z, _, result)
         return fill(result, log(abs(z)), arg(z))
       end
@@ -3100,10 +3112,10 @@ vornmath.bakeries.axisDecompose = {
   { -- axisDecompose(quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'complex', 'vec3'}),
     create = function(types)
-      local fill_complex = vornmath.fill_complex_number_number
-      local fill_vec3 = vornmath.fill_vec3_number_number_number
-      local length = vornmath.length_vec3
-      local div = vornmath.div_vec3_number_vec3
+      local fill_complex = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
+      local fill_vec3 = vornmath.utils.bake('fill', {'vec3', 'number', 'number', 'number'})
+      local length = vornmath.utils.bake('length', {'vec3'})
+      local div = vornmath.utils.bake('div', {'vec3', 'number', 'vec3'})
       return function(z, cpx, axis)
         axis = fill_vec3(axis, z.b, z.c, z.d)
         -- do this instead of normalizing: I need both length and normal
@@ -3149,7 +3161,7 @@ vornmath.bakeries.conj = {
   { -- conj(complex)
     signature_check = vornmath.utils.clearingExactTypeCheck({'complex', 'complex'}),
     create = function(types)
-      local fill = vornmath.fill_complex_number_number
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
       return function(x, result)
         return fill(result, x.a, -x.b)
       end
@@ -3159,7 +3171,7 @@ vornmath.bakeries.conj = {
   { -- conj(quat)
     signature_check = vornmath.utils.clearingExactTypeCheck({'quat', 'quat'}),
     create = function(types)
-      local fill = vornmath.fill_quat_number_number_number_number
+      local fill = vornmath.utils.bake('fill', {'quat', 'number', 'number', 'number', 'number'})
       return function(x, result)
         return fill(result, x.a, -x.b, -x.c, -x.d)
       end
@@ -4755,21 +4767,5 @@ for _, scalar_name in ipairs({'number', 'complex'}) do
     vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width)] = vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width) .. 'x' .. tostring(width)]
   end
 end
-
--- implicit conversions
-
-vornmath.implicit_conversions = {
-  boolean = {boolean = {vornmath.boolean_boolean, vornmath.fill_boolean_boolean}},
-  number = {number = {vornmath.number_number, vornmath.fill_number_number}},
-  complex = {
-    number = {vornmath.complex_number_nil, vornmath.fill_complex_number_nil},
-    complex = {vornmath.complex_complex, vornmath.fill_complex_complex}
-  },
-  quat = {
-    number = {vornmath.quat_number_nil, vornmath.fill_quat_number_nil},
-    complex = {vornmath.quat_complex_nil, vornmath.fill_quat_complex_nil},
-    quat = {vornmath.quat_quat, vornmath.fill_quat_quat}
-  }
-}
 
 return vornmath
