@@ -295,6 +295,12 @@ a + b --> a + b
 vm.add(a, b[, c]) --> c = a + b
 ```
 
+**Domain**: `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`, `matrix, matrix`
+
 Addition!  If applied to a vector and a scalar, or a matrix and a scalar, or two
 vectors of the same size, or two matrices of the same size, it operates
 *componentwise*: `3 + vec3(5, 6, 7) => vec3(8, 9, 10)`, for instance.
@@ -306,6 +312,12 @@ a - b --> a - b
 vm.sub(a, b[, c]) --> c = a - b
 ```
 
+**Domain**: `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`, `matrix, matrix`
+
 Subtraction!  Just like addition, but using the negation of the second argument.
 
 #### `unm` (`-a`)
@@ -315,7 +327,11 @@ Subtraction!  Just like addition, but using the negation of the second argument.
 vm.unm(a[, b]) --> b = -a
 ```
 
-Unary negation!  Works on everything.
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`, `matrix`
+
+Unary negation!  Works on all numeric types.
 
 #### `mul` (`a * b`)
 
@@ -323,6 +339,14 @@ Unary negation!  Works on everything.
 a * b --> a * b
 vm.mul(a, b[, c]) --> c = a * b 
 ```
+**Domain**: `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`
+
+**Special**: `vector, matrix => vector`, `matrix, vector => vector`,
+`matrix, matrix => matrix`, `quat, vec3 => vec3`
 
 Multiplication!  If applied to a vector and a scalar, or a matrix and a scalar,
 or two vectors of the same size, it operates componentwise, just like addition.
@@ -330,12 +354,15 @@ or two vectors of the same size, it operates componentwise, just like addition.
 If applied to a matrix and a vector or two matrices, it performs linear
 algebraic multiplication: each entry of the result takes the matching row of
 the left operand and the matching column of the right operand, multiplies them
-together component wise, and takes the sum.  A vector on the left
-side acts as a row vector; a vector on the right side acts as a column vector.
-The result is a vector or matrix with the same number of rows as the left
-operand and the same number of columns as the right operand.  The left
-operand's number of columns, and the right operand's number of rows, must be
-the same for this to work.
+together component wise, and takes the sum.  In order for this to work, the
+column count of the left operand and row count of the right operand must be the
+same: for matrices this means that they must follow the pattern
+`matαxβ * matγxα = matγxβ`, where the greek letters are replaced by numbers.
+Using a vector as the left operand acts like a row vector `matαx1`, and as the
+right operand acts like a column vector `mat1xα`.  If you need componentwise
+matrix multiplication, see [matrixCompMult](#matrixcompmult).  If you need
+algebraic multiplication of two vectors, see [dot](#dot) to get a scalar or
+[outerProduct](#outerproduct) to get a matrix.
 
 Multiplying a `quat` by a `vec3` results in the vector rotated by the quat.
 
@@ -345,6 +372,12 @@ Multiplying a `quat` by a `vec3` results in the vector rotated by the quat.
 a / b --> a / b
 vm.div(a, b[, c]) --> c = a / b
 ```
+
+**Domain**: `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`, `matrix, matrix`
 
 Division!  Uses the same rules as addition.  For quaternions, non-commutative
 multiplication technically means there are two different forms of division:
@@ -357,8 +390,12 @@ a % b --> a % b
 vm.div(a, b[, c]) --> c = a % b
 ```
 
-Modulus!  Only works on `number`s and vectors and matrices storing `number`s.
-Gives the remainder of division, `p/q - floor(p/q)`.  Works componentwise.
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`, `matrix, matrix`
+
+Modulus!  Gives the remainder of division, `p/q - floor(p/q)`.
 
 #### `pow` (`a ^ b`)
 
@@ -366,6 +403,12 @@ Gives the remainder of division, `p/q - floor(p/q)`.  Works componentwise.
 a ^ b --> a ^ b
 vm.pow(a, b[, c]) --> c = a ^ b
 ```
+
+**Domain**: `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`, `scalar, matrix`, `matrix, scalar`, `matrix, matrix`
 
 Exponentiation!  Some things that are illegal in real numbers will work
 when done in complex numbers: `-1 ^ 0.5` is undefined in real numbers but
@@ -379,11 +422,17 @@ a == b --> a == b
 vm.eq(a, b) --> a == b
 ```
 
+**Domain**: `boolean, boolean => boolean` `number, number => boolean`,
+`complex, complex => boolean`,
+`quat, quat => boolean`, `vector, vector => boolean`,
+`matrix, matrix => boolean`
+
 Equality!  Works on anything; will return `true` if all elements are equal. For
 differing number types, will implicitly convert to the necessary type, so
-`vm.eq(5, complex(5,0))` is `true`.
+`vm.eq(5, complex(5,0))` is `true`.  If you want componentwise comparison of
+vectors, see [equal](#equal).
 
-**warning**: using the symbolic equals `==` on `number` and a type other than
+**WARNING**: using the symbolic equals `==` on `number` and a type other than
 `number` doesn't work correctly and will always return `false`, due to
 limitations in Lua's metatable system.  Instead, use `eq` if you really need to
 do that.
@@ -393,6 +442,8 @@ do that.
 ```lua
 vm.tostring(a) --> a string representation of a
 ```
+
+**Domain**: `anything => string`
 
 Technically this isn't an operator, but it is a thing that gets a metamethod.
 Turns a thing into a string!  The representations provided by this are not
@@ -409,6 +460,10 @@ assumed to be in radians unless otherwise specified.
 vm.rad(angle_in_degrees[, x]) --> x = angle in radians
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Converts angle values from degrees to radians.
 
 #### `deg`
@@ -416,6 +471,10 @@ Converts angle values from degrees to radians.
 ```lua
 vm.deg(angle_in_radians[, x]) --> x = angle in degrees
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Converts angle values from radians to degrees.
 
@@ -425,6 +484,10 @@ Converts angle values from radians to degrees.
 vm.sin(phi[, x]) --> x = sin(phi)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the sine of the given angle.
 
 #### `cos`
@@ -432,6 +495,10 @@ Computes the sine of the given angle.
 ```lua
 vm.cos(phi[, x]) --> x = cos(phi)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the cosine of the given angle.
 
@@ -441,6 +508,10 @@ Computes the cosine of the given angle.
 vm.tan(phi[, x]) --> x = tan(phi)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the tangent of the given angle.
 
 #### `asin`
@@ -448,6 +519,10 @@ Computes the tangent of the given angle.
 ```lua
 vm.asin(phi[, x]) --> x = asin(phi)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the inverse sine or arcsine of the given value.  For real inputs, will
 return an angle between 0 and π.
@@ -457,6 +532,10 @@ return an angle between 0 and π.
 ```lua
 vm.acos(phi[, x]) --> x = acos(phi)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the inverse cosine or arccosine of the given angle.  For real inputs,
 will return an angle between -π/2 and π/2.
@@ -468,6 +547,13 @@ will return an angle between -π/2 and π/2.
 vm.atan(y[, nil, phi]) --> phi = angle
 vm.atan(y, x[, phi]) --> phi = angle
 ```
+
+**Domain**: `number, nil => number`, `complex, nil => complex`,
+`quat, nil => quat`, `number, number => number`, `complex, complex => complex`,
+`quat, quat => quat`
+
+**Componentwise**: `scalar, nil`, `vector, nil`, `scalar, scalar`,
+`vector, vector`
 
 Computes the inverse tangent or arctangent of the given value.  For `numbers`,
 optionally accepts two parameters such that `vm.atan(y, x)` will give the
@@ -482,6 +568,10 @@ or an angle between -π and π for the two-input version.
 vm.sinh(x[, y]) --> y = sinh(x)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the hyperbolic sine of the given value.
 
 #### `cosh`
@@ -490,6 +580,10 @@ Computes the hyperbolic sine of the given value.
 vm.cosh(x[, y]) --> y = cosh(x)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the hyperbolic cosine of the given value.
 
 #### `tanh`
@@ -497,6 +591,9 @@ Computes the hyperbolic cosine of the given value.
 ```lua
 vm.tanh(x[, y]) --> y = tanh(x)
 ```
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the hyperbolic tangent of the given value.
 
@@ -506,13 +603,21 @@ Computes the hyperbolic tangent of the given value.
 vm.asinh(x[, y]) --> y = asinh(x)
 ```
 
-Computes the invers hyperbolic sine of the given value.
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
+Computes the inverse hyperbolic sine of the given value.
 
 #### `acosh`
 
 ```lua
 vm.acosh(x[, y]) --> y = acosh(x)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the inverse hyperbolic cosine of the given value.
 
@@ -521,6 +626,10 @@ Computes the inverse hyperbolic cosine of the given value.
 ```lua
 vm.atanh(x[, y]) --> y = atanh(x)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the inverse hyperbolic tangent of the given value.
 
@@ -534,6 +643,10 @@ All these functions act componentwise on vectors.
 vm.exp(x[, y]) --> y = e^x
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the exponential function `e^z`.
 
 #### `exp2`
@@ -541,6 +654,10 @@ Computes the exponential function `e^z`.
 ```lua
 vm.exp2(x[, y]) --> y = 2^x
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the base-2 exponential function `2^z`.
 
@@ -551,6 +668,10 @@ vm.log(x[, nil, y]) --> y = ln x
 vm.log(x, b[, y]) --> y = log_b x
 ```
 
+**Domain**: `number, nil => number`, `complex, nil => complex`, `quat, nil => quat`, `number, number => number`, `complex, complex => complex`, `quat, quat => quat`
+
+**Componentwise**: `scalar, nil`, `vector, nil`, `scalar, scalar`, `vector, vector`
+
 Computes the logarithm.  For single-argument calls, this is the natural log.
 The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.
 
@@ -559,6 +680,10 @@ The second argument changes the base: `vm.log(8,2) = 3` because `2^3 = 8`.
 ```lua
 vm.log2(x[, y]) --> y = log_2 x
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the base-2 logarithm.
 
@@ -569,6 +694,10 @@ Computes the base-2 logarithm.
 vm.log10(x[, y]) --> y = log_10 x
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the base-10 logarithm.
 
 #### `sqrt`
@@ -577,8 +706,12 @@ Computes the base-10 logarithm.
 vm.sqrt(x[, y]) --> y = sqrt(x)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the square root.  Fails if given a negative `number`; given a negative
-real `complex` or `quat` it will produce some positive multiple of *i*.  All
+real `complex` or `quat` it will produce some positive multiple of $i$.  All
 numbers (other than zero) have two distinct candidates for their square root;
 this function produces the one with a positive real part.
 
@@ -588,6 +721,10 @@ this function produces the one with a positive real part.
 vm.inversesqrt(x[, y]) --> y = 1 / sqrt(x)
 ```
 
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the inverse square root, the reciprocal of the square root.
 
 #### `hypot`
@@ -595,6 +732,11 @@ Computes the inverse square root, the reciprocal of the square root.
 ```lua
 vm.hypot(x, y[, z]) --> z = sqrt(|x^2| + |y^2|)
 ```
+
+**Domain**: `number, number => number`, `complex, complex => number`,
+`quat, quat => number`
+
+**Componentwise**: `scalar, scalar`, `vector, vector`
 
 Gives the length of the hypotenuse of a right triangle with legs length x and y.
 Uses the absolute value to prevent silly results in complexes and quaternions.
@@ -609,6 +751,11 @@ All these act componentwise on vectors.
 vm.arg(a+bi[, x]) --> x = atan(b, a)
 ```
 
+**Domain**: `number => number`, `complex => number`, `quat => number`
+
+**Componentwise**: `scalar`, `vector`
+
+
 Computes the argument or phase of a complex number, the angle the complex
 number makes with the positive real line.  Also works on regular numbers and
 quaternions.
@@ -619,6 +766,11 @@ quaternions.
 vm.arg(a+bi[, z]) --> z = a-bi
 vm.arg(a+bi+cj+dk[, z]) --> z = a-bi-cj-dk
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
+
 
 Computes the conjugate of a complex number or quaternion, which is the same
 number except with all the signs on the complex parts switched.
@@ -634,6 +786,8 @@ vm.axisDecompose(a+bi+cj+dk[, cpx, axis]) --> ...
 -- axis = <b, c, d> / l
 ```
 
+**Domain**: `quat => complex, vec3`
+
 decomposes a quaternion into a complex number and a unit axis.  These can in
 turn be fed back into `vm.quat` to reconstruct the original quaternion.
 
@@ -647,6 +801,10 @@ All these act componentwise on vectors.
 vm.abs(x[, y]) --> y = |x|
 ```
 
+**Domain**: `number => number`, `complex => number`, `quat => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Returns the absolute value, the positive real number with the same magnitude as
 the number given.
 
@@ -656,6 +814,10 @@ the number given.
 vm.sqabs(x[, y]) --> y = |x|^2
 ```
 
+**Domain**: `number => number`, `complex => number`, `quat => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Returns the square of the absolute value.
 
 #### `copysign`
@@ -664,6 +826,10 @@ Returns the square of the absolute value.
 vm.copysign(sign, mag[, result]) --> |result| = |mag|, has same sign as sign
 ```
 
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `vector, vector`
+
 Copys the sign of `sign` onto `mag`.
 
 #### `sign`
@@ -671,6 +837,10 @@ Copys the sign of `sign` onto `mag`.
 ```lua
 vm.sign(x, result) --> result = x/abs(x)
 ```
+
+**Domain**: `number => number`, `complex => complex`, `quat => quat`
+
+**Componentwise**: `scalar`, `vector`
 
 Returns a value with magnitude 1 that has the same sign as x, unless x is 0,
 in which case returns 0.  Also works on complexes and quaternions, giving values
@@ -683,6 +853,10 @@ with the same argument and vector as x.  Notably this means that all results of
 vm.floor(x[, y]) --> y <= x < y + 1; y is integer
 ```
 
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Computes the floor, the highest integer that is at most x.
 
 #### `ceil`
@@ -690,6 +864,10 @@ Computes the floor, the highest integer that is at most x.
 ```lua
 vm.ceil(x[, y]) --> y - 1 < x <= y; y is integer
 ```
+
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
 
 Computes the ceiling, the lowest integer that is at least x.
 
@@ -699,6 +877,10 @@ Computes the ceiling, the lowest integer that is at least x.
 vm.trunc(x[, y]) -- 0 <= y <= x < y + 1 or y - 1 < x <= y <= 0; y is integer
 ```
 
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Truncates a number, removing any fractional part; selects the nearest integer towards 0.
 
 #### `round`
@@ -707,8 +889,13 @@ Truncates a number, removing any fractional part; selects the nearest integer to
 vm.round(x[, y]) -- |x - y| <= 0.5; y is integer
 ```
 
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Rounds a number to the nearest integer.  If the fractional part of x is exactly
-0.5, rounds up.  This is somewhat faster than `roundEven`.
+0.5, rounds up.  This is somewhat faster than `roundEven`, but has a slight
+bias.
 
 #### `roundEven`
 
@@ -716,14 +903,23 @@ Rounds a number to the nearest integer.  If the fractional part of x is exactly
 vm.roundEven(x[, y]) -- |x - y| <= 0.5; y is integer
 ```
 
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
+
 Rounds a number to the nearest integer.  If the fractional part of x is exactly
-0.5, rounds to the nearest even number.  This is somewhat slower than `round`.
+0.5, rounds to the nearest even number.  This is somewhat slower than `round`,
+but is not biased.
 
 #### `fract`
 
 ```lua
 vm.fract(x[, y]) --> y = x - trunc(x)
 ```
+
+**Domain**: `number => number`
+
+**Componentwise**: `scalar`, `vector`
 
 Gives the fractional part of x, with the same sign as x.  Equivalent to the
 second return value of `modf`.
@@ -733,6 +929,10 @@ second return value of `modf`.
 ```lua
 vm.modf(x[, whole, fractional]) --> whole + fractional = x
 ```
+
+**Domain**: `number => number, number`
+
+**Componentwise**: `scalar`, `vector`
 
 Separates a number into whole and fractional parts.  Both parts have the *same
 sign* as the original number, so this works as truncating division instead of
@@ -744,6 +944,11 @@ the usual flooring division.
 vm.fmod(x, y[, remainder]) --> remainder of division
 ```
 
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`
+
 Gets the remainder of division such that the quotient takes the sign of the
 numerator; this is different from % where it takes the sign of the 
 denominator.
@@ -754,6 +959,11 @@ denominator.
 vm.min(x, y[, result]) --> smaller of x and y
 ```
 
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`
+
 Finds the minimum of the two inputs. **Unlike `math.min`, this only accepts two
 inputs!**
 
@@ -762,6 +972,11 @@ inputs!**
 ```lua
 vm.max(x, y[, result]) --> larger of x and y
 ```
+
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`
 
 Finds the maximum of the two inputs. **Unlike `math.max`, this only accepts two
 inputs!**
@@ -772,6 +987,11 @@ inputs!**
 vm.clamp(x, lo, hi) --> min(max(x, lo), hi)
 ```
 
+**Domain**: `number, number, number => number`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, scalar, scalar`,
+`vector, vector, vector`
+
 Finds the closest value to x that's also between lo and hi inclusive.
 
 #### `mix`
@@ -781,8 +1001,14 @@ vm.mix(a, b, t[, r]) --> r = (1-t)*a + t*b
 vm.mix(a, b, flags[, r]) --> r[i] = b[i] if flags[i] is true, a[i] otherwise
 ```
 
+**Domain**: `number, number, number => number`,
+`complex, complex, complex => complex`, `quat, quat, quat => quat`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, scalar`,
+`vector, vector, vector`
+
 Linear or boolean interpolation: if `t` is a scalar or non-boolean vector, it
-will do `(1-t)*a + t*b` componentwise.  If instead it's a boolean vector, it
+will do $(1-t)a + tb$ componentwise.  If instead it's a boolean vector, it
 will select between `a` and `b` based on truth value; this helps to avoid
 problems with NaNs and infinities messing with results in cases where that is
 possible.
@@ -793,17 +1019,29 @@ possible.
 vm.step(edge, x[, r]) --> r = 0 if x < edge, 1 otherwise
 ```
 
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
+`vector, vector`
+
+Gives 0 for `x` values smaller than `edge`
+
 #### `smoothStep`
 
 ```lua
-vm.smoothStep(lo, hi, x) --> cubic easing from 0 to 1 as x goes from lo to hi
+vm.smoothStep(lo, hi, x[, r]) --> cubic easing from 0 to 1 as x goes from lo to hi
 ```
+
+**Domain**: `number, number, number => number`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, scalar`,
+`vector, vector, vector`
 
 Cubic easing from lo to hi:
 
 $$\begin{aligned}
-t &= \frac{x-lo}{hi-lo}\\
-y &= 3t^2-2t^3
+t &= \operatorname{clamp}\left(\frac{x-lo}{hi-lo},0,1\right)\\
+r &= 3t^2-2t^3
 \end{aligned}$$
 
 #### `isnan`
@@ -811,6 +1049,10 @@ y &= 3t^2-2t^3
 ```lua
 vm.isnan(x) --> true if x is NaN.
 ```
+
+**Domain**: `number => boolean`, `complex => boolean`, `quat => boolean`
+
+**Componentwise**: `scalar`, `vector`
 
 check for NaN values; if applied to a complex or quat will be true if any
 component is NaN.
@@ -821,6 +1063,11 @@ component is NaN.
 vm.isinf(x) --> true if x is infinite.
 ```
 
+**Domain**: `number => boolean`, `complex => boolean`, `quat => boolean`
+
+**Componentwise**: `scalar`, `vector`
+
+
 check for infinite values; if applied to a complex or quat will be true if any
 component is infinite.
 
@@ -829,6 +1076,11 @@ component is infinite.
 ```lua
 vm.fma(a, b, c[, r]) --> r = a * b + c
 ```
+
+**Domain**: `number, number, number => number`,
+`complex, complex, complex => complex`, `quat, quat, quat => quat`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, vector`
 
 Fused multiply-add.  This exists for compatibility: it doesn't do 
 anything special as far as precision or operation count goes.
@@ -839,6 +1091,10 @@ anything special as far as precision or operation count goes.
 vm.frexp(x[, mantissa, exponent]) --> mantissa * 2 ^ exponent = x
 ```
 
+**Domain**: `number => number, number`
+
+**Componentwise**: `scalar`, `vector`
+
 Separates a number into a mantissa with absolute value in 0.5 <= x < 1 and
 an exponent such that mantissa * 2 ^ exponent = x.
 
@@ -847,6 +1103,10 @@ an exponent such that mantissa * 2 ^ exponent = x.
 ```lua
 vm.ldexp(mantissa, exponent[, x]) --> x = mantissa * 2 ^ exponent
 ```
+
+**Domain**: `number, number => number`
+
+**Componentwise**: `scalar, scalar`, `vector, vector`
 
 puts a number separated via frexp back together.
 
@@ -858,6 +1118,8 @@ puts a number separated via frexp back together.
 vm.length(v) --> ||v||
 ```
 
+**Domain**: `vecα => number`, `cvecα => number`
+
 Returns the length of a vector.  For complex vectors, this uses the absolute
 value, because using straight squaring will cause lengths of some non-zero
 vectors to be 0, which is not desirable.
@@ -868,6 +1130,8 @@ vectors to be 0, which is not desirable.
 vm.distance(a,b) --> ||b - a||
 ```
 
+**Domain**: `vecα, vecα => number`, `cvecα, cvecα => number`
+
 Finds the distance between two points.  Equivalent to `vm.length(b-a)`.
 
 #### `dot`
@@ -875,6 +1139,8 @@ Finds the distance between two points.  Equivalent to `vm.length(b-a)`.
 ```lua
 vm.dot(a, b[, r]) --> r = a · b
 ```
+
+**Domain**: `vecα, vecα => number`, `cvecα, cvecα => complex`
 
 Finds the dot product of the two vectors.  For complex numbers, this takes the
 conjugate of b: without this, a · a could be zero and that's not great.
@@ -885,6 +1151,8 @@ conjugate of b: without this, a · a could be zero and that's not great.
 vm.cross(a, b[, r]) --> r = a × b
 ```
 
+**Domain**: `vec3, vec3 => vec3`, `cvec3, cvec3 => cvec3`
+
 Finds the cross product of the two vectors.  Unlike `dot` this doesn't take the
 conjugate because it turns out fine.
 
@@ -894,13 +1162,18 @@ conjugate because it turns out fine.
 vm.normalize(a[, r]) --> r = a / ||a||
 ```
 
-Computes a vector in the same direction as the input, but with length 1.
+**Domain**: `vecα => vecα`, `cvecα => cvecα`
+
+Computes a vector in the same direction as the input, but with length 1.  For
+zero vectors, returns a vector full of NaN.
 
 #### `faceForward`
 
 ```lua
 vm.faceForward(n, i, nref[, r]) --> r = -n * sign(dot(i, nref))
 ```
+
+**Domain**: `vecα, vecα, vecα => vecα`
 
 Gives -n or n depending on whether nref is in the same or opposite direction as
 i.
@@ -911,6 +1184,8 @@ i.
 vm.reflect(i, n[, r]) --> r = i - 2 * dot(n, i) * n
 ```
 
+**Domain**: `vecα, vecα => vecα`
+
 gives the direction of the resultant ray after reflecting an incident ray with
 direction `i` off a surface with normal `n`.  `i` and `n` must both be unit
 vectors for this to work correctly.
@@ -920,6 +1195,8 @@ vectors for this to work correctly.
 ```lua
 vm.refract(i, n, eta[, r]) --> r = ...complicated
 ```
+
+**Domain**: `vecα, vecα, number => vecα`
 
 gives the direction of the resultant ray after refracting an incident ray with
 direction `i` through a surface with normal `n` and ratio (after / before) of
@@ -947,6 +1224,8 @@ r &= \begin{cases}
 vm.matrixCompMult(a, b[, r]) --> r[i][j] = a[i][j] * b[i][j]
 ```
 
+**Domain**: `matαxβ, matαxβ => matαxβ`, `cmatαxβ, cmatαxβ => cmatαxβ`
+
 Componentwise multiplication of two matrices.  If you want linear algebraic
 multiplication, use `mul` or the `*` operator.
 
@@ -955,6 +1234,8 @@ multiplication, use `mul` or the `*` operator.
 ```lua
 vm.outerProduct(col, row[, r]) --> r[i][j] = col[i] * row[j]
 ```
+
+**Domain**: `vecα * vecβ = matβxα`, `cvecα * cvecβ = cmatβxα`
 
 Linear algebraic product of a column vector `col` and a row vector `row`,
 producing a matrix.
@@ -965,6 +1246,8 @@ producing a matrix.
 vm.transpose(m[, r]) --> r = mᵀ
 ```
 
+**Domain**: `matαxβ => matβxα`, `cmatαxβ => cmatβxα`
+
 Transposes the matrix: swaps the meaning of rows and columns.
 
 #### `determinant`
@@ -972,6 +1255,8 @@ Transposes the matrix: swaps the meaning of rows and columns.
 ```lua
 vm.determinant(m[, r]) --> r = |m|
 ```
+
+**Domain**: `matαxβ => number`, `cmatαxβ => complex`
 
 Calculates the determinant of the matrix.
 
@@ -981,19 +1266,23 @@ Calculates the determinant of the matrix.
 vm.inverse(m[, r]) --> r = m⁻¹
 ```
 
+**Domain**: `matαxα => matαxα`, `cmatαxα => cmatαxα`
+
 Calculates the inverse of the matrix.
 
 ### Vector relational functions
 
 The ones named for various comparison relations are componentwise for vectors:
-instead of returning a single boolean, they return a bvec where each component
-is the result of applying that relation to 
+instead of returning a single boolean, they return a `bvec` where each component
+is the result of applying that relation to the matching components
 
 #### `equal`
 
 ```lua
 vm.equal(a,b) --> a bvec with true for equal components and false for unequal
 ```
+
+**Domain**: `vecα, vecα => bvecα`, `cvecα, cvecα => bvecα`
 
 Componentwise vector equality comparison.  If you want a single boolean, check
 [eq](#eq) instead.
@@ -1004,6 +1293,8 @@ Componentwise vector equality comparison.  If you want a single boolean, check
 vm.notEqual(a,b) --> a bvec with true for unequal components and false for equal
 ```
 
+**Domain**: `vecα, vecα => bvecα`, `cvecα, cvecα => bvecα`
+
 Componentwise vector inequality comparison.  If you want a single boolean, use
 `not eq(a,b)` instead.
 
@@ -1013,6 +1304,8 @@ Componentwise vector inequality comparison.  If you want a single boolean, use
 vm.greaterThan(a,b) --> a bvec with true for components where a[i] > b[i]
 ```
 
+**Domain**: `vecα, vecα => bvecα`
+
 Componentwise vector comparison using >.
 
 #### `greaterThanEqual`
@@ -1020,6 +1313,8 @@ Componentwise vector comparison using >.
 ```lua
 vm.greaterThanEqual(a,b) --> a bvec with true for components where a[i] >= b[i]
 ```
+
+**Domain**: `vecα, vecα => bvecα`
 
 Componentwise vector comparison using >=.
 
@@ -1029,6 +1324,8 @@ Componentwise vector comparison using >=.
 vm.lessThan(a,b) --> a bvec with true for components where a[i] < b[i]
 ```
 
+**Domain**: `vecα, vecα => bvecα`
+
 Componentwise vector comparison using <.
 
 #### `lessThanEqual`
@@ -1036,6 +1333,8 @@ Componentwise vector comparison using <.
 ```lua
 vm.lessThanEqual(a,b) --> a bvec with true for components where a[i] <= b[i]
 ```
+
+**Domain**: `vecα, vecα => bvecα`
 
 Componentwise vector comparison using <=.
 
@@ -1045,6 +1344,8 @@ Componentwise vector comparison using <=.
 vm.any(v) --> logical OR of all components
 ```
 
+**Domain**: `bvecα => boolean`
+
 Returns `true` if any of the components of `v` are `true`; otherwise, `false`.
 
 #### `all`
@@ -1053,6 +1354,8 @@ Returns `true` if any of the components of `v` are `true`; otherwise, `false`.
 vm.all(v) --> logical AND of all components
 ```
 
+**Domain**: `bvecα => boolean`
+
 Returns `true` if all of the components of `v` are `true`; otherwise, `false`.
 
 #### `logicalAnd`
@@ -1060,6 +1363,8 @@ Returns `true` if all of the components of `v` are `true`; otherwise, `false`.
 ```lua
 vm.logicalAnd(a,b) --> componentwise logical AND
 ```
+
+**Domain**: `bvecα, bvecα => bvecα`
 
 Returns `true` for each component that is `true` in *both* a and b.  This does
 not short-circuit: both inputs are evaluated regardless of result.
@@ -1070,6 +1375,8 @@ not short-circuit: both inputs are evaluated regardless of result.
 vm.logicalOr(a,b) --> componentwise logical OR
 ```
 
+**Domain**: `bvecα, bvecα => bvecα`
+
 Returns `true` for each component that is `true` in *either* a and b.  This does
 not short-circuit: both inputs are evaluated regardless of result.
 
@@ -1079,7 +1386,9 @@ not short-circuit: both inputs are evaluated regardless of result.
 vm.logicalNot(a) --> componentwise logical NOT
 ```
 
-Returns `true` for each component that is `false`.
+**Domain**: `bvecα => bvecα`
+
+Returns `true` for each component that is `false`. and vice versa.
 
 ## Technical Details
 
@@ -1112,11 +1421,11 @@ Let's look at multiplication.  `mul` has, including filling and return-only
 versions, 594 distinct valid signatures, in a dozen or so patterns, all of which
 have to actually work.  This is already too many to have each one represented
 directly in the source file - I know, because I tried it:  it would be about
-half the size as the vornmath library is as a whole right now.  Worse still
+1/3 the size as the vornmath library is as a whole right now.  Worse still
 would be `fill`, which has tens of millions of signatures, almost none of which
 will ever actually get used, and I'm not about to try to judge which ones are
-actually sane.  So these have to get generated at some point at runtime, and as
-late as possible is the best choice.
+actually sane.  So these have to get generated at some point at runtime, and
+the moment they're actually needed is the best choice.
 
 Meanwhile, the work required to calculate which function to call in the first
 place (and indeed whether that is a usable function!) is quite complicated.  By
