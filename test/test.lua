@@ -172,6 +172,7 @@ end
 
 function testHypot()
     lu.assertEquals(vm.hypot(3,4), 5)
+    lu.assertEquals(vm.hypot(vm.complex(0,3), 4), 5)
 end
 
 function testArg()

@@ -2965,7 +2965,6 @@ vornmath.bakeries.log2 = {
   }
 }
 
-
 vornmath.bakeries.sqrt = {
   { -- sqrt(number)
     signature_check = vornmath.utils.clearingExactTypeCheck({'number'}),
@@ -3046,29 +3045,24 @@ vornmath.bakeries.hypot = {
   },
   {
     signature_check = function(types)
-      if types[1] ~= types[2] or types[1] ~= types[3] then return false end
-      if vornmath.utils.hasBakery('sqabs', {types[1], types[1]}) and vornmath.utils.hasBakery('sqrt', {types[1], types[1]}) then
-        types[4] = nil
-        return true
-      end
+      local left = vornmath.metatables[types[1]]
+      local right = vornmath.metatables[types[2]]
+      if left.vm_shape ~= 'scalar' or right.vm_shape ~= 'scalar' then return false end
+      if not vornmath.utils.hasBakery('sqabs', {types[1]}) or not vornmath.utils.hasBakery('sqabs', {types[2]}) then return false end
+      if types[3] and types[3] ~= 'number' and types[3] ~= 'nil' then return false end
+      types[3] = nil
+      return true
     end,
     create = function(types)
-      local sqabs = vornmath.utils.bake('sqabs', {types[1], types[1]})
-      local sqrt = vornmath.utils.bake('sqrt', {types[1], types[1]})
-      local add = vornmath.utils.bake('add', {types[1], types[1]})
-      local as = vornmath[types[1]]()
-      local bs = vornmath[types[1]]()
-      return function(a,b,r)
-        as = sqabs(a, as)
-        bs = sqabs(b, bs)
-        r = add(as, bs, r)
-        return sqrt(r, r)
+      local lsqabs, rsqabs = vornmath.utils.bake('sqabs', {types[1]}), vornmath.utils.bake('sqabs', {types[2]})
+      return function(a,b)
+        return math.sqrt(lsqabs(a) + rsqabs(b))
       end
     end,
-    return_type = function(types) return types[3] end
+    return_type = function(types) return 'number' end
   },
-  vornmath.utils.componentWiseReturnOnlys('hypot', 2),
-  vornmath.utils.componentWiseExpander('hypot', {'vector', 'vector'}),
+  vornmath.utils.componentWiseExpander('hypot', {'vector', 'vector'}, 'number'),
+  vornmath.utils.componentWiseReturnOnlys('hypot', 2, 'number'),
 }
 
 -- complex and quaternion functions
@@ -3499,7 +3493,7 @@ vornmath.bakeries.clamp = {
     return_type = function(types) return 'number' end
   },
   vornmath.utils.componentWiseExpander('clamp', {'vector', 'vector', 'vector'}),
-  vornmath.utils.componentWiseExpander('clamp', {'vector', 'number', 'number'}),
+  vornmath.utils.componentWiseExpander('clamp', {'vector', 'number', 'scalar'}),
   vornmath.utils.componentWiseReturnOnlys('clamp', 3),
 }
 
