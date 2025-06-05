@@ -1607,12 +1607,12 @@ vornmath.bakeries.mul = {
       local depth = left_type.vm_dim[1]
       local mul = vornmath.utils.bake('mul', {left_type.vm_storage, right_type.vm_storage, result_type.vm_storage})
       local add = vornmath.utils.bake('add', {result_type.vm_storage, result_type.vm_storage, result_type.vm_storage})
-      local make = vornmath.utils.bake(types[3], {'number'})
-      local make_scratch = vornmath.utils.bake(result_type.vm_storage, {})
+      local empty_temp = vornmath.utils.bake('fill',  {types[3], 'number'})
       local fill = vornmath.utils.bake('fill', {types[3], types[3]})
+      local temp = vornmath[types[3]]()
+      local value_scratch = vornmath[types[3]]
       return function(left, right, result)
-        local temp = make(0)
-        local value_scratch = make_scratch()
+        temp = empty_temp(temp, 0)
         for x = 1, width do
           for y = 1, height do
             for z = 1, depth do
@@ -1655,12 +1655,12 @@ vornmath.bakeries.mul = {
       local depth = right_type.vm_dim[2]
       local mul = vornmath.utils.bake('mul', {left_type.vm_storage, right_type.vm_storage, result_type.vm_storage})
       local add = vornmath.utils.bake('add', {result_type.vm_storage, result_type.vm_storage, result_type.vm_storage})
-      local make = vornmath.utils.bake(types[3], {'number'})
-      local make_scratch = vornmath.utils.bake(result_type.vm_storage, {})
+      local empty_temp = vornmath.utils.bake('fill',  {types[3], 'number'})
       local fill = vornmath.utils.bake('fill', {types[3], types[3]})
+      local temp = vornmath[types[3]]()
+      local value_scratch = vornmath[types[3]]
       return function(left, right, result)
-        local temp = make(0)
-        local value_scratch = make_scratch()
+        temp = empty_temp(temp, 0)
         for x = 1, width do
           for z = 1, depth do
             value_scratch = mul(left[z], right[x][z], value_scratch)
@@ -1701,12 +1701,12 @@ vornmath.bakeries.mul = {
       local depth = left_type.vm_dim[1]
       local mul = vornmath.utils.bake('mul', {left_type.vm_storage, right_type.vm_storage, result_type.vm_storage})
       local add = vornmath.utils.bake('add', {result_type.vm_storage, result_type.vm_storage, result_type.vm_storage})
-      local make = vornmath.utils.bake(types[3], {'number'})
-      local make_scratch = vornmath.utils.bake(result_type.vm_storage, {})
+      local empty_temp = vornmath.utils.bake('fill',  {types[3], 'number'})
       local fill = vornmath.utils.bake('fill', {types[3], types[3]})
+      local temp = vornmath[types[3]]()
+      local value_scratch = vornmath[types[3]]
       return function(left, right, result)
-        local temp = make(0)
-        local value_scratch = make_scratch()
+        temp = empty_temp(temp, 0)
         for y = 1, height do
           for z = 1, depth do
             value_scratch = mul(left[z][y], right[z], value_scratch)
@@ -3685,7 +3685,7 @@ vornmath.bakeries.isinf = {
 }
 
 vornmath.bakeries.fma = {
-  { -- mix(scalar, scalar, scalar)
+  { -- fma(scalar, scalar, scalar)
     signature_check = function(types)
       if #types < 4 then return false end
       for i = 1,4 do
