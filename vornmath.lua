@@ -46,6 +46,7 @@ vornmath.utils = {}
 vornmath.bakeries = {}
 vornmath.metabakeries = {}
 vornmath.metatables = {}
+vornmath.walks = {}
 vornmath.metameta = {
   __index = function(_, thing)
     -- process the thing to get the name.
@@ -78,26 +79,39 @@ function vornmath.utils.hasBakery(function_name, types)
   return false
 end
 
-local function buildProxies(function_name, types)
-  local built_name = '_' .. function_name
-  if not rawget(vornmath, function_name) then
-    local existing_name = built_name
-    local gmt = vornmath.utils.getmetatable
-    vornmath[function_name] = function(...) return gmt(select(1, ...))[existing_name](...) end
+local function walk(name, ...)
+  local t = vornmath.walks[name]
+  if not t then return vornmath.utils.bakeByCall(name, ...)(...) end
+  local i = 1
+  while true do -- I can't use select('#', ...) here because some signatures have trailing nils
+    local target_type = vornmath.utils.type(select(i, ...))
+    local thing = t[target_type]
+    if not thing then
+      return vornmath.utils.bakeByCall(name, ...)(...)
+    elseif type(thing) == 'table' then
+      t = thing
+    else -- type(thing) == function
+      return thing(...)
+    end
+    i = i + 1
   end
-  for i,type_name in ipairs(types) do
-    local existing_name = built_name
-    local next_name = existing_name .. '_' .. type_name
-    local select_index = i + 1
+end
+
+local function buildWalk(function_name, types, f)
+  local target = vornmath.walks
+  if not target[function_name] then target[function_name] = {} end
+  target = target[function_name]
+  for i,t in ipairs(types) do
     if i == #types then
-      break
-    end
-    built_name = next_name
-    if not rawget(vornmath.metatables[type_name], existing_name) then
-      vornmath.metatables[type_name][existing_name] = function(...) return vornmath.utils.getmetatable(select(select_index, ...))[next_name](...) end
+      target[t] = f
+    else
+      if not target[t] then
+        target[t] = {}
+      end
+      target = target[t]
     end
   end
-  vornmath.metatables[types[#types]][built_name] = vornmath[function_name .. '_' .. table.concat(types, '_')]
+  if not vornmath[function_name] then vornmath[function_name] = function(...) return walk(function_name, ...) end end
 end
 
 function vornmath.utils.bake(function_name, types)
@@ -109,7 +123,7 @@ function vornmath.utils.bake(function_name, types)
   ---@diagnostic disable-next-line: need-check-nil, undefined-field
   local result = bakery.create(types)
   vornmath[name] = result
-  buildProxies(function_name, types)
+  buildWalk(function_name, types, result)
   return result
 end
 
@@ -245,8 +259,7 @@ vornmath.utils.vm_meta = {
     else
       -- instead, bake *only* the proxy.
       if not vm.bakeries[index] then error("unknown vornmath function `" .. index .. "`.") end
-      local proxy_index = '_' .. index
-      vm[index] = function(...) return vm.utils.getmetatable(select(1, ...))[proxy_index](...) end
+      vm[index] = function(...) return walk(index, ...) end
       return vm[index]
     end
   end
