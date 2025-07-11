@@ -745,4 +745,12 @@ function testMatrixTableFill()
     lu.assertError(vm.cmat3, t)
 end
 
+function testCis()
+    lu.assertAlmostEquals(vm.cis(math.pi / 3), vm.complex(0.5, math.sqrt(3)/2))
+end
+
+function testPolarComplex()
+    lu.assertAlmostEquals(vm.polarComplex(math.sqrt(8), math.pi/4), vm.complex(2,2), 1e-15)
+end
+
 os.exit(lu.LuaUnit.run())

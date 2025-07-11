@@ -504,6 +504,20 @@ vm.cos(phi[, x]) --> x = cos(phi)
 
 Computes the cosine of the given angle.
 
+#### `cis`
+
+```lua
+vm.cos(phi[, z]) --> z = cos(phi) + i * sin(phi)
+```
+
+**Domain**: `number => complex`
+
+**Componentwise**: `scalar`, `vector`
+
+Computes the cis function,
+$\operatorname{cis} \theta = \cos \theta + i \sin \theta = e^{i\theta}$; if
+$z = \operatorname{cis} \theta$, then $|z| = 1$ and $\arg z = \theta$.
+
 #### `tan`
 
 ```lua
@@ -635,6 +649,20 @@ vm.atanh(x[, y]) --> y = atanh(x)
 
 Computes the inverse hyperbolic tangent of the given value.
 
+#### `polarComplex`
+
+```lua
+vm.polarComplex(r, theta[, z]) --> z = r cis(theta)
+```
+
+**Domain**: `number, number => complex`
+
+**Componentwise**: `scalar`, `vector`
+
+Produces a complex number with a given absolute value $r$ and argument $\theta$:
+$\operatorname {polarComplex}(r, \theta) = r \operatorname {cis}\theta
+= re^{i\theta}$
+
 ### Exponential functions
 
 All these functions act componentwise on vectors.
@@ -647,7 +675,7 @@ vm.exp(x[, y]) --> y = e^x
 
 **Domain**: `number => number`, `complex => complex`, `quat => quat`
 
-**Componentwise**: `scalar`, `vector`
+**Componentwise**: `scalar, scalar`, `vector, vector`
 
 Computes the exponential function `e^z`.
 

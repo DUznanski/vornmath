@@ -2427,6 +2427,22 @@ vornmath.bakeries.cos = {
   vornmath.utils.componentWiseReturnOnlys('cos', 1)
 }
 
+vornmath.bakeries.cis = {
+  { -- cis(number)
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number','complex'}),
+    create = function(types)
+      local fill = vornmath.utils.bake('fill', {'complex', 'number', 'number'})
+      local sin, cos = math.sin, math.cos
+      return function(theta, z)
+        return fill(z, cos(theta), sin(theta))
+      end
+    end,
+    return_type = function(types) return 'complex' end
+  },
+  vornmath.utils.componentWiseExpander('cis', {'vector'}, 'complex'),
+  vornmath.utils.componentWiseReturnOnlys('cis', 1, 'complex'),
+}
+
 vornmath.bakeries.tan = {
   { -- tan(number)
     signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
@@ -2858,6 +2874,23 @@ vornmath.bakeries.atanh = {
   vornmath.utils.componentWiseExpander('atanh', {'vector'}),
   vornmath.utils.quatOperatorFromComplex('atanh'),
   vornmath.utils.componentWiseReturnOnlys('atanh', 1)
+}
+
+vornmath.bakeries.polarComplex = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number','number','complex'}),
+    create = function(types)
+      local cis = vornmath.utils.bake('cis', {'number', 'complex'})
+      local mul = vornmath.utils.bake('mul', {'number', 'complex', 'complex'})
+      return function(r, theta, z)
+        z = cis(theta, z)
+        return mul(r, z, z)
+      end
+    end,
+    return_type = function(types) return 'complex' end
+  },
+  vornmath.utils.componentWiseExpander('polarComplex', {'vector', 'vector'}, 'complex'),
+  vornmath.utils.componentWiseReturnOnlys('polarComplex', 2, 'complex'),
 }
 
 -- exponential and logarithmic functions
