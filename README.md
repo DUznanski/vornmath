@@ -202,6 +202,7 @@ vm.vec2() --> <0, 0>
 vm.vec3(a) --> <a, a, a>
 vm.cvec4(vm.vec2(a,b), vm.cvec3(c,d,e)) --> <complex(a), complex(b), c, d>
 vm.bvec2() --> <false, false>
+vm.vec4({a,b,c,d}) --> <a, b, c, d>
 ```
 
 Vectors.  There are actually 9 vector types: `vec2`, `vec3`, and `vec4` are 2-,
@@ -255,6 +256,7 @@ vm.mat2x3(a,b,c,d,e,f) --> [[a,b,c], [d,e,f]]
 vm.mat3(vm.mat2x3(a,b,c,d,e,f)) --> [[a,b,c], [d,e,f], [0,0,1]]
 vm.mat3(vm.quat(...)) --> rotation matrix
 vm.mat4(vm.quat(...)) --> rotation matrix
+vm.mat3x2({a,b,c,d,e,f}) --> [[a,b], [c,d], [e,f]]
 ```
 
 Matrices.  There's 18 of these!  They can use numbers or complexes, can be 2 to
@@ -1476,8 +1478,11 @@ contains some readable information about the type itself:
 and `{width, height}` for matrices.
 * `vm_type` has it all together as the official typename of the type.
 
-`number`, `boolean`, `string`, and `nil` also get their own "metatables" though
-they do not get attached to the types, but see 
+`number`, `boolean`, `string`, `table` and `nil` also get their own
+"metatables".  Though they do not get attached to the types, they do get used by
+vornmath (via the utility functions) to get necessary information about the
+types when baking.
+
 
 ### Utility functions
 
