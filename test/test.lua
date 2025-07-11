@@ -729,4 +729,20 @@ function testTrunc()
     lu.assertEquals(vm.trunc(-1.2), -1)
 end
 
+function testVectorTableFill()
+    local t = {3, 5, vm.complex()}
+    lu.assertEquals(vm.vec2(t), vm.vec2(3, 5))
+    lu.assertEquals(vm.cvec3(t), vm.cvec3(3, 5, vm.complex()))
+    lu.assertError(vm.vec3, t)
+    lu.assertError(vm.cvec4, t)
+end
+
+function testMatrixTableFill()
+    local t = {1, 2, 3, 4, vm.complex(5), 6}
+    lu.assertEquals(vm.mat2(t), vm.mat2(1,2,3,4))
+    lu.assertEquals(vm.cmat3x2(t), vm.cmat3x2(1, 2, 3, 4, vm.complex(5), 6))
+    lu.assertError(vm.mat3x2, t)
+    lu.assertError(vm.cmat3, t)
+end
+
 os.exit(lu.LuaUnit.run())

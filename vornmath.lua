@@ -47,14 +47,6 @@ vornmath.bakeries = {}
 vornmath.metabakeries = {}
 vornmath.metatables = {}
 vornmath.walks = {}
-vornmath.metameta = {
-  __index = function(_, thing)
-    -- process the thing to get the name.
-    -- the name should just be the first word of the name.
-    local name = string.match(thing, '[^_]+')
-    return function(...) return vornmath.utils.bakeByCall(name, ...)(...) end
-  end
-}
 
 vornmath.utils.bakerymeta = {
   __index = function(bakeries, name)
@@ -1235,6 +1227,35 @@ vornmath.bakeries.fill = {
     end,
     return_type = function(types) return types[1] end
   },
+  { -- fill(vec, table)
+    signature_check = function(types)
+      local first = vornmath.metatables[types[1]]
+      if first.vm_shape ~= 'vector' then return false end
+      if types[2] == 'table' then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local typename = types[1]
+      local first = vornmath.metatables[typename]
+      local dim = first.vm_dim
+      local storage = first.vm_storage
+      local write = vornmath.utils.bake('fill', {typename, typename})
+      local fill = vornmath.fill
+      local scratch = vornmath[types[1]]()
+      return function(target, t)
+        for i = 1,dim do
+          if t[i] == nil then error("Filling " .. typename .. " from table failed: need at least " .. dim .. "elements, got " .. string(i-1) .. ".") end
+          local worked, result = pcall(fill, scratch[i], t[i])
+          if not worked then error("Filling " .. typename .. " from table failed: element " .. i .. " (" .. string(t[i]) .. ") could not be converted to " .. storage .. ".") end
+          scratch[i] = result
+        end
+        return write(target, scratch)
+      end
+    end,
+    return_type = function(types) return types[1] end
+  },
   { -- fill(matrix)
     signature_check = function(types)
       local first = vornmath.metatables[types[1]]
@@ -1415,6 +1436,40 @@ vornmath.bakeries.fill = {
         end
       ]]
       return load(code)(casts)
+    end,
+    return_type = function(types) return types[1] end
+  },
+  { -- fill(matrix, table)
+    signature_check = function(types)
+      local first = vornmath.metatables[types[1]]
+      if first.vm_shape ~= 'matrix' then return false end
+      if types[2] == 'table' then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local typename = types[1]
+      local first = vornmath.metatables[typename]
+      local width = first.vm_dim[1]
+      local height = first.vm_dim[2]
+      local dim = width * height
+      local storage = first.vm_storage
+      local write = vornmath.utils.bake('fill', {typename, typename})
+      local fill = vornmath.fill
+      local scratch = vornmath[types[1]]()
+      return function(target, t)
+        for x = 1,width do
+          for y = 1,height do
+            local i = (x-1) * height + y
+            if t[i] == nil then error("Filling " .. typename .. " from table failed: need at least " .. dim .. "elements, got " .. i-1 .. ".") end
+            local worked, result = pcall(fill, scratch[x][y], t[i])
+            if not worked then error("Filling " .. typename .. " from table failed: element " .. i .. " (" .. tostring(t[i]) .. ") could not be converted to " .. storage .. ".") end
+            scratch[x][y] = result
+          end
+        end
+        return write(target, scratch)
+      end
     end,
     return_type = function(types) return types[1] end
   },
@@ -4691,8 +4746,12 @@ vornmath.metatables['string'] = {
   vm_storage = 'string'
 }
 
-setmetatable(vornmath.metatables['nil'], vornmath.metameta)
-setmetatable(vornmath.metatables['string'], vornmath.metameta)
+vornmath.metatables['table'] = {
+  vm_type = 'table',
+  vm_shape = 'table',
+  vm_dim = 1,
+  vm_storage = 'table'
+}
 
 -- so it turns out that __unm is called with two copies of the thing to negate
 -- This breaks outvar detection and causes `-a` to actually mutate a when possible.
@@ -4721,7 +4780,6 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex', 'quat'}) do
     __pow = vornmath.pow,
     __tostring = vornmath.tostring,
   }
-  setmetatable(vornmath.metatables[scalar_name], vornmath.metameta)
 end
 
 for _, scalar_name in ipairs({'boolean', 'number', 'complex'}) do
@@ -4746,7 +4804,6 @@ for _, scalar_name in ipairs({'boolean', 'number', 'complex'}) do
       getters = {},
       setters = {}
     }
-    setmetatable(vornmath.metatables[typename], vornmath.metameta)
   end
 end
 
@@ -4769,7 +4826,6 @@ for _, scalar_name in ipairs({'number', 'complex'}) do
         __pow = vornmath.pow,
         __tostring = vornmath.tostring,
         }
-        setmetatable(vornmath.metatables[typename], vornmath.metameta)
       end
     vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width)] = vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width) .. 'x' .. tostring(width)]
   end
