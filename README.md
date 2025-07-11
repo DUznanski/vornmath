@@ -663,6 +663,35 @@ Produces a complex number with a given absolute value $r$ and argument $\theta$:
 $\operatorname {polarComplex}(r, \theta) = r \operatorname {cis}\theta
 = re^{i\theta}$
 
+#### `polarVec2`
+
+```lua
+vm.polarVec2(r, theta[, v]) --> v = r * <sin(theta), cos(theta)>
+```
+
+**Domain**: `number, number => vec2`
+
+Produces a vec2 with the given magnitude and direction.
+
+#### `cylindricalVec3`
+
+```lua
+vm.cylindricalVec3(r, theta, z[, v]) --> v = <r * sin(theta), r * cos(theta), z>
+```
+
+**Domain**: `number, number, number => vec3`
+
+Produces a cartesian vec3 from cylindrical coordinates.
+
+#### `sphericalVec3
+
+```lua
+vm.cylindricalVec3(r, theta, phi[, v])
+--> v = <r * sin(theta) * cos(phi), r * cos(theta) * cos(phi), z * sin(phi)>
+```
+
+Produces a cartesian vec3 from spherical coordinates.
+
 ### Exponential functions
 
 All these functions act componentwise on vectors.

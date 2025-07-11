@@ -753,4 +753,10 @@ function testPolarComplex()
     lu.assertAlmostEquals(vm.polarComplex(math.sqrt(8), math.pi/4), vm.complex(2,2), 1e-15)
 end
 
+function testPolarVectors()
+    lu.assertAlmostEquals(vm.polarVec2(5, math.atan(0.75)), vm.vec2(4,3))
+    lu.assertAlmostEquals(vm.cylindricalVec3(13, math.atan(2.4), -10), vm.vec3(5,12,-10), 1e-14) -- this one's even more floppy
+    lu.assertAlmostEquals(vm.sphericalVec3(math.sqrt(3), math.pi/4, math.atan(math.sqrt(0.5))), vm.vec3(1,1,1))
+end
+
 os.exit(lu.LuaUnit.run())

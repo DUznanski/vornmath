@@ -2893,6 +2893,85 @@ vornmath.bakeries.polarComplex = {
   vornmath.utils.componentWiseReturnOnlys('polarComplex', 2, 'complex'),
 }
 
+vornmath.bakeries.polarVec2 = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number','number','vec2'}),
+    create = function(types)
+      local sin, cos = math.sin, math.cos
+      local fill = vornmath.utils.bake('fill', {'vec2', 'number', 'number'})
+      return function(r, theta, v)
+        return fill(v, r * cos(theta), r * sin(theta))
+      end
+    end,
+    return_type = function(types) return 'vec2' end
+  },
+  { -- return only
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number', 'number'}),
+    create = function(types)
+      local construct = vornmath.utils.bake('vec2', {})
+      local f = vornmath.utils.bake('polarVec2', {'number', 'number', 'vec2'})
+      return function(r, theta)
+        local v = construct()
+        return f(r, theta, v)
+      end
+    end,
+    return_type = function(types) return 'vec2' end
+  }
+}
+
+vornmath.bakeries.cylindricalVec3 = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number', 'vec3'}),
+    create = function(types)
+      local sin, cos = math.sin, math.cos
+      local fill = vornmath.utils.bake('fill', {'vec3', 'number', 'number', 'number'})
+      return function(r, theta, z, v)
+        return fill(v, r * cos(theta), r * sin(theta), z)
+      end
+    end,
+    return_type = function(types) return 'vec3' end
+  },
+  { -- return only
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number', 'number', 'number'}),
+    create = function(types)
+      local construct = vornmath.utils.bake('vec3', {})
+      local f = vornmath.utils.bake('cylindricalVec3', {'number', 'number', 'number', 'vec3'})
+      return function(r, theta, z)
+        local v = construct()
+        return f(r, theta, z, v)
+      end
+    end,
+    return_type = function(types) return 'vec3' end
+  }
+}
+
+vornmath.bakeries.sphericalVec3 = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number', 'vec3'}),
+    create = function(types)
+      local sin, cos = math.sin, math.cos
+      local fill = vornmath.utils.bake('fill', {'vec3', 'number', 'number', 'number'})
+      return function(r, theta, phi, v)
+        local c = cos(phi)
+        return fill(v, r * cos(theta) * c, r * sin(theta) * c, r * sin(phi))
+      end
+    end,
+    return_type = function(types) return 'vec3' end
+  },
+  { -- return only
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number', 'number', 'number'}),
+    create = function(types)
+      local construct = vornmath.utils.bake('vec3', {})
+      local f = vornmath.utils.bake('sphericalVec3', {'number', 'number', 'number', 'vec3'})
+      return function(r, theta, phi)
+        local v = construct()
+        return f(r, theta, phi, v)
+      end
+    end,
+    return_type = function(types) return 'vec3' end
+  }
+}
+
 -- exponential and logarithmic functions
 
 vornmath.bakeries.exp = {
