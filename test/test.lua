@@ -759,4 +759,17 @@ function testPolarVectors()
     lu.assertAlmostEquals(vm.sphericalVec3(math.sqrt(3), math.pi/4, math.atan(math.sqrt(0.5))), vm.vec3(1,1,1))
 end
 
+function testMinMaxComponent()
+    local v = vm.vec4(2,1,4,3)
+    lu.assertEquals(vm.minComponent(v), 1)
+    lu.assertEquals(vm.maxComponent(v), 4)
+end
+
+function testFunkyNormalizes()
+    lu.assertEquals(vm.cubeNormalize(vm.vec3(1,-4,2)), vm.vec3(0.25,-1,0.5))
+    lu.assertEquals(vm.homogeneousNormalize(vm.vec3(5,10,2.5)), vm.vec3(2,4,1))
+    lu.assertAlmostEquals(vm.homogeneousNormalize(vm.vec3(3,4,0)), vm.vec3(0.6,0.8,0))
+    lu.assertAlmostEquals(vm.hesseNormalize(vm.vec3(3,-4,10)), vm.vec3(0.6,-0.8,2))
+end
+
 os.exit(lu.LuaUnit.run())

@@ -3978,7 +3978,7 @@ vornmath.bakeries.ldexp = {
   vornmath.utils.componentWiseReturnOnlys('ldexp', 2),
 }
 
--- geometric functions
+-- vector functions
 
 vornmath.bakeries.length = {
   {
@@ -4133,6 +4133,52 @@ vornmath.bakeries.cross = {
   vornmath.utils.componentWiseReturnOnlys('cross',2)
 }
 
+vornmath.bakeries.minComponent = {
+  {
+    signature_check = function(types)
+      local first = vornmath.metatables[types[1]]
+      if first.vm_shape == 'vector' and first.vm_storage == 'number' then
+        types[2] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local l = vornmath.metatables[types[1]].vm_dim
+      return function(v)
+        local x = v[1]
+        for k = 2,l do
+          x = math.min(x, v[k])
+        end
+        return x
+      end
+    end,
+    return_type = function(types) return 'number' end
+  }
+}
+
+vornmath.bakeries.maxComponent = {
+  {
+    signature_check = function(types)
+      local first = vornmath.metatables[types[1]]
+      if first.vm_shape == 'vector' and first.vm_storage == 'number' then
+        types[2] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local l = vornmath.metatables[types[1]].vm_dim
+      return function(v)
+        local x = v[1]
+        for k = 2,l do
+          x = math.max(x, v[k])
+        end
+        return x
+      end
+    end,
+    return_type = function(types) return 'number' end
+  }
+}
+
 vornmath.bakeries.normalize = {
   {
     signature_check = function(types)
@@ -4156,6 +4202,93 @@ vornmath.bakeries.normalize = {
   },
   vornmath.utils.componentWiseReturnOnlys('normalize', 1)
 }
+
+vornmath.bakeries.homogeneousNormalize = {
+  {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if types[1] ~= types[2] then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      if first_meta.vm_shape ~= 'vector' then return false end
+      if vornmath.utils.hasBakery('length', {types[1]}) then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local normalize = vornmath.utils.bake('normalize', {types[1], types[1]})
+      local div = vornmath.utils.bake('div', {types[1], first_meta.vm_storage, types[2]})
+      local eq = vornmath.utils.bake('eq', {first_meta.vm_storage, 'number'})
+      local l = first_meta.vm_dim
+      return function(a, r)
+        if not eq(a[l],0) then
+          return div(a, a[l], r)
+        else
+          return normalize(a, r)
+        end
+      end
+    end
+  },
+  vornmath.utils.componentWiseReturnOnlys('homogeneousNormalize', 1)
+}
+
+vornmath.bakeries.hesseNormalize = {
+  {
+    signature_check = function(types)
+      if #types < 2 then return false end
+      if types[1] ~= types[2] then return false end
+      local first_meta = vornmath.metatables[types[1]]
+      if first_meta.vm_shape ~= 'vector' or first_meta.vm_dim < 3 then return false end
+      if vornmath.utils.hasBakery('length', {types[1]}) then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first_meta = vornmath.metatables[types[1]]
+      local short_type = vornmath.utils.findTypeByData('vector', first_meta.vm_dim - 1, first_meta.vm_storage)
+      local demote = vornmath.utils.bake('fill', {short_type, types[1]})
+      local length = vornmath.utils.bake('length', {short_type})
+      local div = vornmath.utils.bake('div', {types[1], 'number'})
+      local shortened = vornmath[short_type]()
+      return function(a, r)
+        return div(a, length(demote(shortened, a)), r)
+      end
+    end
+  },
+  vornmath.utils.componentWiseReturnOnlys('hesseNormalize', 1)
+}
+
+vornmath.bakeries.cubeNormalize = {
+  {
+    signature_check = function(types)
+    if #types < 2 then return false end
+      if types[1] ~= types[2] then return false end
+      local first = vornmath.metatables[types[1]]
+      if first.vm_shape ~= 'vector' or first.vm_dim < 3 then return false end
+      if vornmath.utils.hasBakery('div', {types[1], 'number'}) then
+        types[3] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local first = vornmath.metatables[types[1]]
+      local nvec = vornmath.utils.findTypeByData(first.vm_shape, first.vm_dim, 'number')
+      local abs = vornmath.utils.bake('abs', {types[1], nvec})
+      local cm = vornmath.utils.bake('maxComponent', {nvec})
+      local div = vornmath.utils.bake('div', {types[1], 'number', types[1]})
+      local scratch = vornmath[nvec]()
+      return function(v, r)
+        return div(v, cm(abs(v,scratch)), r)
+      end
+    end,
+    return_type = function(types) return types[1] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('cubeNormalize', 1)
+
+}
+
 
 vornmath.bakeries.faceForward = {
   {

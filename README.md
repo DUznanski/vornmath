@@ -1215,6 +1215,22 @@ vm.cross(a, b[, r]) --> r = a × b
 Finds the cross product of the two vectors.  Unlike `dot` this doesn't take the
 conjugate because it turns out fine.
 
+#### `minComponent`
+
+```lua
+vm.minComponent(a) --> min(unpack(a))
+```
+
+Finds the smallest component of a vector.
+
+#### `maxComponent`
+
+```lua
+vm.minComponent(a) --> max(unpack(a))
+```
+
+Finds the largest component of a vector.
+
 #### `normalize`
 
 ```lua
@@ -1225,6 +1241,45 @@ vm.normalize(a[, r]) --> r = a / ||a||
 
 Computes a vector in the same direction as the input, but with length 1.  For
 zero vectors, returns a vector full of NaN.
+
+#### `homogeneousNormalize`
+
+```lua
+vm.homogeneousNormalize(a[, r]) --> r = a/a[last] if a[last] ~= 0; a/length(a) otherwise 
+```
+
+**Domain**: `vecα => vecα`, `cvecα => cvecα`
+
+Computes a vector in the same direction as the input, but either
+1. with last component 1, or
+2. with length 1 if the last component is 0.
+
+This makes the result vector normalized homogeneous coordinates.
+
+#### `hesseNormalize`
+
+```lua
+vm.hesseNormalize(a[, r]) --> r = a / length(demote(a))
+```
+
+**Domain**: `vecα => vecα`, `cvecα => cvecα`, α > 2 
+
+Computes a vector in the same direction as the input, but with all but the last
+component forming a unit vector.  This makes the vector usable as a line/plane
+in Hesse normal form.
+
+### `cubeNormalize`
+
+```lua
+vm.cubeNormalize(a[, r]) --> r = a / maxComponent(abs(a))
+```
+
+**Domain**: `vecα => vecα`, `cvecα => cvecα`
+
+Computes a vector in the same direction as the input, but with the highest
+magnitude of any one component as 1.
+
+This places the vector on a cube of edge length 2 around the origin.
 
 #### `faceForward`
 
