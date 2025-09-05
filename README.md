@@ -507,7 +507,7 @@ Computes the cosine of the given angle.
 #### `cis`
 
 ```lua
-vm.cos(phi[, z]) --> z = cos(phi) + i * sin(phi)
+vm.cis(phi[, z]) --> z = cos(phi) + i * sin(phi)
 ```
 
 **Domain**: `number => complex`
@@ -515,8 +515,8 @@ vm.cos(phi[, z]) --> z = cos(phi) + i * sin(phi)
 **Componentwise**: `scalar`, `vector`
 
 Computes the cis function,
-$\operatorname{cis} \theta = \cos \theta + i \sin \theta = e^{i\theta}$; if
-$z = \operatorname{cis} \theta$, then $|z| = 1$ and $\arg z = \theta$.
+$\text{cis} \theta = \cos \theta + i \sin \theta = e^{i\theta}$; if
+$z = \text{cis} \theta$, then $|z| = 1$ and $\arg z = \theta$.
 
 #### `tan`
 
@@ -660,7 +660,7 @@ vm.polarComplex(r, theta[, z]) --> z = r cis(theta)
 **Componentwise**: `scalar`, `vector`
 
 Produces a complex number with a given absolute value $r$ and argument $\theta$:
-$\operatorname {polarComplex}(r, \theta) = r \operatorname {cis}\theta
+$\text {polarComplex}(r, \theta) = r \text {cis}\theta
 = re^{i\theta}$
 
 #### `polarVec2`
@@ -686,7 +686,7 @@ Produces a cartesian vec3 from cylindrical coordinates.
 #### `sphericalVec3
 
 ```lua
-vm.cylindricalVec3(r, theta, phi[, v])
+vm.sphericalVec3(r, theta, phi[, v])
 --> v = <r * sin(theta) * cos(phi), r * cos(theta) * cos(phi), z * sin(phi)>
 ```
 
@@ -1070,7 +1070,65 @@ Linear or boolean interpolation: if `t` is a scalar or non-boolean vector, it
 will do $(1-t)a + tb$ componentwise.  If instead it's a boolean vector, it
 will select between `a` and `b` based on truth value; this helps to avoid
 problems with NaNs and infinities messing with results in cases where that is
-possible.
+possible.  Also called "lerp".
+
+#### `unmix`
+
+```lua
+vm.unmix(a, b, r[, t]) --> t = (r - a) / (b - a)
+```
+
+**Domain**: `number, number, number => number`,
+`complex, complex, complex => complex`, `quat, quat, quat => quat`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, vector`
+
+The inverse of linear interpolation:
+$\text{mix}(a, b, \text{unmix}(a, b, r)) = r$.  
+Also called "inverse lerp".
+
+#### `geometricMix`
+
+```lua
+vm.geometricMix(a, b, t[, r]) --> r = a^(1-t) * b^t
+```
+
+**Domain**: `number, number, number => number`,
+`complex, complex, complex => complex`, `quat, quat, quat => quat`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, scalar`,
+`vector, vector, vector`
+
+Geometric interpolation:
+$\text{geometricMix}(a,b,t) = a^{1-t}b^t$.
+
+For unit complexes and quaternions, this is often called "slerp".
+If you want to do spherical interpolation between individual vectors, use the
+function actually called [slerp](#slerp).
+
+#### `geometricUnmix`
+
+```lua
+vm.geometricUnmix(a, b, x[, r]) --> r = (log(x) - log(a)) / (log(b) - log(a))
+```
+
+The inverse of geometric interplation:
+$\text{geometrixMix}(a, b, \text{geometricUnmix}(a, b, r)) = r$.
+
+#### `decay`
+
+```lua
+vm.decay(a, b, t[, r]) --> r = mix(b, a, 2^-t)
+```
+
+**Domain**: `number, number, number => number`,
+`complex, complex, complex => complex`, `quat, quat, quat => quat`
+
+**Componentwise**: `scalar, scalar, scalar`, `vector, vector, scalar`,
+`vector, vector, vector`
+
+Exponential decay: move from a toward b, slowing down exponentially; t is the
+number of half-lives moved.
 
 #### `step`
 
@@ -1083,7 +1141,7 @@ vm.step(edge, x[, r]) --> r = 0 if x < edge, 1 otherwise
 **Componentwise**: `scalar, scalar`, `scalar, vector`, `vector, scalar`,
 `vector, vector`
 
-Gives 0 for `x` values smaller than `edge`
+Gives 0 for `x` values smaller than `edge` and 1 for equal or larger values.
 
 #### `smoothStep`
 
@@ -1099,7 +1157,7 @@ vm.smoothStep(lo, hi, x[, r]) --> cubic easing from 0 to 1 as x goes from lo to 
 Cubic easing from lo to hi:
 
 $$\begin{aligned}
-t &= \operatorname{clamp}\left(\frac{x-lo}{hi-lo},0,1\right)\\
+t &= \text{clamp}\left(\frac{x-lo}{hi-lo},0,1\right)\\
 r &= 3t^2-2t^3
 \end{aligned}$$
 
@@ -1268,7 +1326,7 @@ Computes a vector in the same direction as the input, but with all but the last
 component forming a unit vector.  This makes the vector usable as a line/plane
 in Hesse normal form.
 
-### `cubeNormalize`
+#### `cubeNormalize`
 
 ```lua
 vm.cubeNormalize(a[, r]) --> r = a / maxComponent(abs(a))
@@ -1329,6 +1387,18 @@ r &= \begin{cases}
 \eta i - \left(\eta n\cdot i + \sqrt k\right)n&\text{otherwise}
 \end{cases}
 \end{aligned}$$
+
+#### `slerp`
+
+```lua 
+vm.slerp(a, b, t[, r]) --> theta = acos(dot(normalize(a), normalize(b)))
+-- r = a * sin(theta*(1-t))/sin(theta) + b * sin(theta*t)/sin(theta)
+```
+
+**Domain**: `vecα, vecα, number => vecα`
+
+Interpolates between two vectors with constant angular speed, following an
+ellipse through the two vectors.
 
 ### Matrix functions
 

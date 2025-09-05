@@ -772,4 +772,21 @@ function testFunkyNormalizes()
     lu.assertAlmostEquals(vm.hesseNormalize(vm.vec3(3,-4,10)), vm.vec3(0.6,-0.8,2))
 end
 
+function testUnmix()
+    lu.assertEquals(vm.unmix(vm.vec3(3,8,0), vm.vec3(7,6,2), vm.vec3(4,7,-1)),vm.vec3(0.25,0.5,-0.5))
+end
+
+function testDecay()
+    lu.assertAlmostEquals(vm.decay(5, 4, 2), 4.25)
+end
+
+function testGeometricMix()
+    lu.assertAlmostEquals(vm.geometricMix(2,32,0.25), 4, 1e-15)
+    lu.assertAlmostEquals(vm.geometricUnmix(2,32,4), 0.25)
+end
+
+function testSlerp()
+    lu.assertAlmostEquals(vm.slerp(vm.vec2(1,0), vm.polarVec2(1,math.pi/4), 2/3), vm.polarVec2(1, math.pi/6))
+end
+
 os.exit(lu.LuaUnit.run())

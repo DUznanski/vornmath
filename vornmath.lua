@@ -3021,9 +3021,9 @@ vornmath.bakeries.exp2 = {
 
 vornmath.bakeries.log = {
   { -- log(number)
-    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'number'}),
+    signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'nil'}),
     create = function(types)
-      return math.log
+      return function(x) return math.log(x) end -- have to do it this way; luajit hates math.log(x, nil)
     end,
     return_type = function(types) return 'number' end
   },
@@ -3702,13 +3702,12 @@ vornmath.bakeries.mix = {
       local leftmul = vornmath.utils.bake('mul', {types[1], types[3], at_type})
       local rightmul = vornmath.utils.bake('mul', {types[2], types[3], bt_type})
       local add = vornmath.utils.bake('add', {at_type, bt_type, types[4]})
-      local sub = vornmath.utils.bake('sub', {types[3], types[3], types[3]})
+      local sub = vornmath.utils.bake('sub', {'number', types[3], types[3]})
       local at = vornmath[at_type]()
       local bt = vornmath[bt_type]()
       local s = vornmath[types[3]]()
-      local one = vornmath[types[3]](1)
       return function(a,b,t,r)
-        s = sub(one, t, s)
+        s = sub(1, t, s)
         at = leftmul(a,s,at)
         bt = rightmul(b,t,bt)
         return add(at, bt, r)
@@ -3777,6 +3776,169 @@ vornmath.bakeries.mix = {
   }
 }
 
+vornmath.bakeries.unmix = {
+  { -- unmix(scalar, scalar, scalar)
+    signature_check = function(types)
+      if #types < 4 then return false end
+      for i = 1,4 do
+        if vornmath.metatables[types[i]].vm_shape ~= 'scalar' then return false end
+      end
+      if not (vornmath.utils.hasBakery('sub', {types[3], types[1]}) and
+              vornmath.utils.hasBakery('sub', {types[2], types[1]})) then
+        return false
+      end
+      local at_type = vornmath.utils.returnType('sub', {types[3], types[1]})
+      local bt_type = vornmath.utils.returnType('sub', {types[2], types[1]})
+      if not vornmath.utils.hasBakery('div', {at_type, bt_type, types[4]}) then
+        return false
+      end
+      types[5] = nil
+      return true
+    end,
+    create = function(types)
+      local at_type = vornmath.utils.returnType('sub', {types[3], types[1]})
+      local bt_type = vornmath.utils.returnType('sub', {types[2], types[1]})
+      local topsub = vornmath.utils.bake('sub', {types[3], types[1], at_type})
+      local bottomsub = vornmath.utils.bake('sub', {types[2], types[1], bt_type})
+      local div = vornmath.utils.bake('div', {at_type, bt_type, types[4]})
+      local at = vornmath[at_type]()
+      local bt = vornmath[bt_type]()
+      return function(a,b,x,r)
+        at = topsub(x,a,at)
+        bt = bottomsub(b,a,bt)
+        return div(at, bt, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseExpander('unmix', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseReturnOnlys('unmix', 3),
+}
+
+vornmath.bakeries.geometricMix = {
+  { -- mix(scalar, scalar, scalar)
+    signature_check = function(types)
+      if #types < 4 then return false end
+      for i = 1,4 do
+        if vornmath.metatables[types[i]].vm_shape ~= 'scalar' then return false end
+      end
+      if not (vornmath.utils.hasBakery('pow', {types[1], types[3]}) and
+              vornmath.utils.hasBakery('pow', {types[2], types[3]})) then
+        return false
+      end
+      local at_type = vornmath.utils.returnType('pow', {types[1], types[3]})
+      local bt_type = vornmath.utils.returnType('pow', {types[2], types[3]})
+      if not vornmath.utils.hasBakery('mul', {at_type, bt_type, types[4]}) then
+        return false
+      end
+      types[5] = nil
+      return true
+    end,
+    create = function(types)
+      local at_type = vornmath.utils.returnType('pow', {types[1], types[3]})
+      local bt_type = vornmath.utils.returnType('pow', {types[2], types[3]})
+      local leftpow = vornmath.utils.bake('pow', {types[1], types[3], at_type})
+      local rightpow = vornmath.utils.bake('pow', {types[2], types[3], bt_type})
+      local mul = vornmath.utils.bake('mul', {at_type, bt_type, types[4]})
+      local sub = vornmath.utils.bake('sub', {'number', types[3], types[3]})
+      local at = vornmath[at_type]()
+      local bt = vornmath[bt_type]()
+      local s = vornmath[types[3]]()
+      return function(a,b,t,r)
+        s = sub(1, t, s)
+        at = leftpow(a,s,at)
+        bt = rightpow(b,t,bt)
+        return mul(at, bt, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseExpander('geometricMix', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseExpander('geometricMix', {'vector', 'vector', 'scalar'}),
+  vornmath.utils.componentWiseReturnOnlys('geometricMix', 3)
+}
+
+vornmath.bakeries.geometricUnmix = {
+  { -- unmix(scalar, scalar, scalar)
+    signature_check = function(types)
+      if #types < 4 then return false end
+      for i = 1,4 do
+        if vornmath.metatables[types[i]].vm_shape ~= 'scalar' then return false end
+      end
+      if not (vornmath.utils.hasBakery('log', {types[1]}) and
+              vornmath.utils.hasBakery('log', {types[2]}) and
+              vornmath.utils.hasBakery('log', {types[3]}) and
+              vornmath.utils.hasBakery('sub', {types[3], types[1]}) and
+              vornmath.utils.hasBakery('sub', {types[2], types[1]})) then
+        return false
+      end
+      local at_type = vornmath.utils.returnType('sub', {types[3], types[1]})
+      local bt_type = vornmath.utils.returnType('sub', {types[2], types[1]})
+      if not vornmath.utils.hasBakery('div', {at_type, bt_type, types[4]}) then
+        return false
+      end
+      types[5] = nil
+      return true
+    end,
+    create = function(types)
+      local at_type = vornmath.utils.returnType('sub', {types[3], types[1]})
+      local bt_type = vornmath.utils.returnType('sub', {types[2], types[1]})
+      local loga = vornmath.utils.bake('log', {types[1], 'nil', types[1]})
+      local logb = vornmath.utils.bake('log', {types[2], 'nil', types[2]})
+      local logc = vornmath.utils.bake('log', {types[3], 'nil', types[3]})
+      local topsub = vornmath.utils.bake('sub', {types[3], types[1], at_type})
+      local bottomsub = vornmath.utils.bake('sub', {types[2], types[1], bt_type})
+      local div = vornmath.utils.bake('div', {at_type, bt_type, types[4]})
+      local la = vornmath[types[1]]()
+      local lb = vornmath[types[2]]()
+      local lx = vornmath[types[3]]()
+      local at = vornmath[at_type]()
+      local bt = vornmath[bt_type]()
+      return function(a,b,x,r)
+        la = loga(a, nil, la)
+        lb = logb(b, nil, lb)
+        lx = logc(x, nil, lx)
+        at = topsub(lx,la,at)
+        bt = bottomsub(lb,la,bt)
+        return div(at, bt, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseExpander('geometricUnmix', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseReturnOnlys('geometricUnmix', 3),
+}
+
+vornmath.bakeries.decay = {
+  {
+    signature_check = function(types)
+      if #types < 4 then return false end
+      for i = 1,4 do
+        if vornmath.metatables[types[i]].vm_shape ~= 'scalar' then return false end
+      end
+      if not vornmath.utils.hasBakery('exp2', {types[3]}) then return false end
+      if vornmath.utils.hasBakery('mix', {types[2], types[1], types[3], types[4]}) then
+        types[5] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local negate = vornmath.utils.bake('unm', {types[3], types[3]})
+      local exp2 = vornmath.utils.bake('exp2', {types[3], types[3]})
+      local mix = vornmath.utils.bake('mix', {types[2], types[1], types[3], types[4]})
+      local scratch = vornmath[types[3]]()
+      return function(a, b, t, r)
+        scratch = exp2(negate(t, scratch), scratch)
+        return mix(b, a, scratch, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseExpander('decay', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseExpander('decay', {'vector', 'vector', 'scalar'}),
+  vornmath.utils.componentWiseReturnOnlys('decay', 3)
+}
+ 
 vornmath.bakeries.step = {
   {
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number'}),
@@ -3796,13 +3958,30 @@ vornmath.bakeries.step = {
   vornmath.utils.componentWiseReturnOnlys('step', 2)
 }
 
+vornmath.bakeries.linearStep = {
+  {
+  signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number'}),
+  create = function(types)
+    local clamp = vornmath.utils.bake('clamp', {'number', 'number', 'number'})
+    local unmix = vornmath.utils.bake('unmix', {'number', 'number', 'number'})
+    return function(lo, hi, x)
+      return clamp(unmix(lo, hi, x),0,1)
+    end
+  end,
+  return_type = function(types) return 'number' end
+  },
+  vornmath.utils.componentWiseExpander('linearStep', {'scalar', 'scalar', 'vector'}),
+  vornmath.utils.componentWiseExpander('linearStep', {'vector', 'vector', 'vector'}),
+  vornmath.utils.componentWiseReturnOnlys('linearStep', 3)
+}
+
 vornmath.bakeries.smoothStep = {
   {
     signature_check = vornmath.utils.clearingExactTypeCheck({'number', 'number', 'number'}),
     create = function(types)
-      local clamp = vornmath.utils.bake('clamp', {'number', 'number', 'number'})
+      local linearStep = vornmath.utils.bake('linearStep', {'number', 'number', 'number'})
       return function(lo, hi, x)
-        local t = clamp((x-lo)/(hi-lo), 0, 1)
+        local t = linearStep(lo, hi, x)
         return t * t * (3 - 2 * t)
       end
     end,
@@ -4289,7 +4468,6 @@ vornmath.bakeries.cubeNormalize = {
 
 }
 
-
 vornmath.bakeries.faceForward = {
   {
     signature_check = function(types)
@@ -4382,6 +4560,37 @@ vornmath.bakeries.refract = {
     return_type = function(types) return types[4] end
   },
   vornmath.utils.componentWiseReturnOnlys('refract', 3)
+}
+
+vornmath.bakeries.slerp = {
+  {
+    signature_check = function(types)
+      if types[1] ~= types[2] or types[1] ~= types[4] then return false end
+      local meta = vornmath.metatables[types[1]]
+      if meta.vm_shape == 'vector' and meta.vm_storage == 'number' and types[3] == 'number' then
+        types[5] = nil
+        return true
+      end
+    end,
+    create = function(types)
+      local dot = vornmath.utils.bake('dot', {types[1], types[2]})
+      local length = vornmath.utils.bake('length', {types[1]})
+      local mul = vornmath.utils.bake('mul', {types[1], 'number', types[1]})
+      local add = vornmath.utils.bake('add', {types[1], types[1], types[1]})
+      local scratch = vornmath[types[1]]()
+      return function(a,b,t,r)
+        local theta = math.acos(dot(a,b)/(length(a) * length(b)))
+        local denominator = math.sin(theta)
+        local u = math.sin((1-t) * theta) / denominator
+        local v = math.sin(t * theta) / denominator
+        scratch = mul(a, u, scratch)
+        r = mul(b, v, r)
+        return add(scratch, r, r)
+      end
+    end,
+    return_type = function(types) return types[4] end
+  },
+  vornmath.utils.componentWiseReturnOnlys('slerp', 3)
 }
 
 -- matrix functions
