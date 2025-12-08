@@ -24,6 +24,16 @@ SOFTWARE.
 
 local vornmath = {}
 
+vornmath.settings = {
+  setColorspace = function(new_space)
+    vornmath.settings._colorspace = new_space
+    vornmath.utils.prepareColorConverters()
+  end,
+  getColorspace = function()
+    return vornmath.settings._colorspace
+  end
+}
+
 -- loadstring gets folded into load in later versions (5.2+)
 ---@diagnostic disable-next-line: deprecated
 local load = loadstring or load
@@ -5184,6 +5194,7 @@ vornmath.bakeries.logicalNot = {
   vornmath.utils.componentWiseExpander('logicalNot', {'vector'}),
   vornmath.utils.componentWiseReturnOnlys('logicalNot', 1)
 }
+
 -- pseudometatables for non-numerics
 
 vornmath.metatables['nil'] = {
@@ -5284,5 +5295,375 @@ for _, scalar_name in ipairs({'number', 'complex'}) do
     vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width)] = vornmath[SCALAR_PREFIXES[scalar_name] .. 'mat' .. tostring(width) .. 'x' .. tostring(width)]
   end
 end
+
+-- color
+
+local named_colors = {
+  aliceblue = "#f0f8ffff", antiquewhite = "#faebd7ff", aqua = "#00ffffff", aquamarine = "#7fffd4ff",
+  azure = "#f0ffffff", beige = "#f5f5dcff", bisque = "#ffe4c4ff", black = "#000000ff",
+  blanchedalmond = "#ffebcdff", blue = "#0000ffff", blueviolet = "#8a2be2ff", brown = "#a52a2aff",
+  burlywood = "#deb887ff", cadetblue = "#5f9ea0ff", chartreuse = "#7fff00ff",
+  chocolate = "#d2691eff", coral = "#ff7f50ff", cornflowerblue = "#6495edff",
+  cornsilk = "#fff8dcff", crimson = "#dc143cff", cyan = "#00ffffff", darkblue = "#00008bff",
+  darkcyan = "#008b8bff", darkgoldenrod = "#b8860bff", darkgray = "#a9a9a9ff",
+  darkgreen = "#006400ff", darkgrey = "#a9a9a9ff", darkkhaki = "#bdb76bff",
+  darkmagenta = "#8b008bff", darkolivegreen = "#556b2fff", darkorange = "#ff8c00ff",
+  darkorchid = "#9932ccff", darkred = "#8b0000ff", darksalmon = "#e9967aff",
+  darkseagreen = "#8fbc8fff", darkslateblue = "#483d8bff", darkslategray = "#2f4f4fff",
+  darkslategrey = "#2f4f4fff", darkturquoise = "#00ced1ff", darkviolet = "#9400d3ff",
+  deeppink = "#ff1493ff", deepskyblue = "#00bfffff", dimgray = "#696969ff", dimgrey = "#696969ff",
+  dodgerblue = "#1e90ffff", firebrick = "#b22222ff", floralwhite = "#fffaf0ff",
+  forestgreen = "#228b22ff", fuchsia = "#ff00ffff", gainsboro = "#dcdcdcff",
+  ghostwhite = "#f8f8ffff", gold = "#ffd700ff", goldenrod = "#daa520ff", gray = "#808080ff",
+  green = "#008000ff", greenyellow = "#adff2fff", grey = "#808080ff", honeydew = "#f0fff0ff",
+  hotpink = "#ff69b4ff", indianred = "#cd5c5cff", indigo = "#4b0082ff", ivory = "#fffff0ff",
+  khaki = "#f0e68cff", lavender = "#e6e6faff", lavenderblush = "#fff0f5ff", lawngreen = "#7cfc00ff",
+  lemonchiffon = "#fffacdff", lightblue = "#add8e6ff", lightcoral = "#f08080ff",
+  lightcyan = "#e0ffffff", lightgoldenrodyellow = "#fafad2ff", lightgray = "#d3d3d3ff",
+  lightgreen = "#90ee90ff", lightgrey = "#d3d3d3ff", lightpink = "#ffb6c1ff",
+  lightsalmon = "#ffa07aff", lightseagreen = "#20b2aaff", lightskyblue = "#87cefaff",
+  lightslategray = "#778899ff", lightslategrey = "#778899ff", lightsteelblue = "#b0c4deff",
+  lightyellow = "#ffffe0ff", lime = "#00ff00ff", limegreen = "#32cd32ff", linen = "#faf0e6ff",
+  magenta = "#ff00ffff", maroon = "#800000ff", mediumaquamarine = "#66cdaaff",
+  mediumblue = "#0000cdff", mediumorchid = "#ba55d3ff", mediumpurple = "#9370dbff",
+  mediumseagreen = "#3cb371ff", mediumslateblue = "#7b68eeff", mediumspringgreen = "#00fa9aff",
+  mediumturquoise = "#48d1ccff", mediumvioletred = "#c71585ff", midnightblue = "#191970ff",
+  mintcream = "#f5fffaff", mistyrose = "#ffe4e1ff", moccasin = "#ffe4b5ff",
+  navajowhite = "#ffdeadff", navy = "#000080ff", oldlace = "#fdf5e6ff", olive = "#808000ff",
+  olivedrab = "#6b8e23ff", orange = "#ffa500ff", orangered = "#ff4500ff", orchid = "#da70d6ff",
+  palegoldenrod = "#eee8aaff", palegreen = "#98fb98ff", paleturquoise = "#afeeeeff",
+  palevioletred = "#db7093ff", papayawhip = "#ffefd5ff", peachpuff = "#ffdab9ff",
+  peru = "#cd853fff", pink = "#ffc0cbff", plum = "#dda0ddff", powderblue = "#b0e0e6ff",
+  purple = "#800080ff", rebeccapurple = "#663399ff", red = "#ff0000ff", rosybrown = "#bc8f8fff",
+  royalblue = "#4169e1ff", saddlebrown = "#8b4513ff", salmon = "#fa8072ff",
+  sandybrown = "#f4a460ff", seagreen = "#2e8b57ff", seashell = "#fff5eeff", sienna = "#a0522dff",
+  silver = "#c0c0c0ff", skyblue = "#87ceebff", slateblue = "#6a5acdff", slategray = "#708090ff",
+  slategrey = "#708090ff", snow = "#fffafaff", springgreen = "#00ff7fff", steelblue = "#4682b4ff",
+  tan = "#d2b48cff", teal = "#008080ff", thistle = "#d8bfd8ff", tomato = "#ff6347ff",
+  turquoise = "#40e0d0ff", violet = "#ee82eeff", wheat = "#f5deb3ff", white = "#ffffffff",
+  whitesmoke = "#f5f5f5ff", yellow = "#ffff00ff", yellowgreen = "#9acd32ff"
+}
+
+local function dehex(x)
+  return tonumber(x, 16)
+end
+
+vornmath.bakeries.colorParse = {
+  {
+    signature_check = vornmath.utils.clearingExactTypeCheck({'string', 'vec4'}),
+    create = function(types)
+      local fill = vornmath.utils.bake('fill', {'vec4', 'number', 'number', 'number', 'number'})
+      local div = vornmath.utils.bake('div', {'vec4', 'number', 'vec4'})
+      return function(s, result)
+        local rs,gs,bs,as,r,g,b,a,size
+        if named_colors[s] then s = named_colors[s] end
+        -- hashnumbers
+        rs,gs,bs = string.match(s, '^#(%x)(%x)(%x)$')
+        if rs then
+          r, g, b, a, size = dehex(rs), dehex(gs), dehex(bs), 15, 15
+        end
+        rs,gs,bs,as = string.match(s, '^#(%x)(%x)(%x)(%x)$')
+        if rs then
+          r, g, b, a, size = dehex(rs), dehex(gs), dehex(bs), dehex(as), 15
+        end
+        rs,gs,bs = string.match(s, '^#(%x%x)(%x%x)(%x%x)$')
+        if rs then
+          r, g, b, a, size = dehex(rs), dehex(gs), dehex(bs), 255, 255
+        end
+        rs,gs,bs,as = string.match(s, '^#(%x%x)(%x%x)(%x%x)(%x%x)$')
+        if rs then
+          r, g, b, a, size = dehex(rs), dehex(gs), dehex(bs), dehex(as), 255
+        end
+        if not r then error("Unknown color code: " .. s) end
+        result = fill(result, r,g,b,a)
+        return div(result, size, result)
+      end
+    end,
+    return_type = function(types) return 'vec4' end
+  },
+  {
+    signature_check = vornmath.utils.nilFollowingExactTypeCheck({'string'}),
+    create = function(types)
+      local make = vornmath.utils.bake('vec4', {})
+      local act = vornmath.utils.bake('colorParse', {'string', 'vec4'})
+      return function(s)
+        local result = make()
+        return act(s, result)
+      end
+    end,
+    return_type = function(types) return 'vec4' end
+  }
+}
+
+-- conversion formulas
+-- colorConversions[from][to]
+-- you only need to and from srgb for each thing; eventually it will try that one.
+-- more specific things can be helpful though!
+
+do
+  local hsv_indices = {
+    {1,2,3},
+    {2,1,3},
+    {3,1,2},
+    {3,2,1},
+    {2,3,1},
+    {1,3,2}
+  }
+  local fill = vornmath.utils.bake('fill', {'vec4', 'number', 'number', 'number', 'number'})
+  local duplicate = vornmath.utils.bake('fill', {'vec4', 'vec4'})
+
+  vornmath.colorConversions = {
+    hsl = {
+      hsv = function(from, to)
+        local value = from[3] + from[2] * math.min(from[3], 1 - from[3])
+        local saturation
+        if value <= 0 then
+          saturation = 0
+        else
+          saturation = 2 * (1 - from[3] / value)
+        end
+        return fill(to, from[1], saturation, value, from[4])
+      end
+    },
+    hsv = {
+      hsl = function(from, to)
+        local lightness = from[3] * (1 - from[2] / 2)
+        local saturation
+        if lightness <= 0 or lightness >= 1 then
+          saturation = 0
+        else
+          saturation = 2 * (1 - lightness / from[3])
+        end
+        return fill(to, from[1], saturation, lightness, from[4])
+      end,
+      hwb = function(from, to)
+        to[1] = from[1]
+        to[2] = (1 - from[2]) * from[3]
+        to[3] = 1 - from[3]
+        to[4] = from[4]
+        return to
+      end,
+      srgb = function(from, to)
+        local small_hue = from[1] / 60
+        local segment = math.floor(small_hue) + 1
+        local is = hsv_indices[segment]
+        local hue_strength = 1 - math.abs(small_hue % 2 - 1)
+        local chroma = from[2] * from[3]
+        local secondary = chroma * hue_strength
+        local bottom = from[3] - chroma
+        local results = {chroma + bottom, secondary + bottom, bottom}
+        return fill(to, results[is[1]], results[is[2]], results[is[3]], from[4])
+      end
+    },
+    hwb = {
+      hsv = function(from, to)
+        local value = 1 - to[3]
+        to[1] = from[1]
+        if value == 0 then
+          to[2] = 0
+        else
+          to[2] = 1 - from[2] / value
+        end
+        to[3] = value
+        to[4] = from[4]
+        return to
+      end
+    },
+    linearrgb = {
+      srgb = function(from, to)
+        for i = 1,3 do
+          local x = from[i]
+          if x > 0.0032 then
+            to[i] = 1.055 * x^(1/2.4) - 0.055
+          elseif x < 0.003 then
+            to[i] = x * 12.92
+          else
+            to[i] = math.min(x * 12.92, 1.055 * x^(1/2.4) - 0.055)
+          end
+        end
+        to[4] = from[4]
+        return to
+      end
+    },
+    srgb = {
+      hsv = function(from, to)
+        local value = math.max(from[1], from[2], from[3])
+        local bottom = math.min(from[1], from[2], from[3])
+        local chroma = value - bottom
+        local small_hue
+        if chroma == 0 then
+          small_hue = 0
+        else
+          if from[1] == value then
+            small_hue = (from[2] - from[3]) / chroma
+          elseif from[2] == value then
+            small_hue = (from[3] - from[1]) / chroma + 2
+          else -- from[3] == value
+            small_hue = (from[1] - from[2]) / chroma + 4
+          end
+        end
+        local hue = (small_hue % 6) * 60
+        local saturation = chroma / value
+        return fill(to, hue, saturation, value, from[4])
+      end,
+      linearrgb = function(from, to)
+        for i = 1, 3 do
+          local x = from[i]
+          if x > 0.041 then
+            to[i] = ((x+0.055)/1.055)^2.4
+          elseif x < 0.04 then
+            to[i] = x / 12.92
+          else -- between 0.04 and 0.041, the area where the two meet
+            to[i] = math.max(x / 12.92, ((x + 0.055)/1.055)^2.4)
+          end
+        end
+        to[4] = from[4]
+        return to
+      end
+    },
+  }
+
+  local function reverseFill(a,b)
+    return duplicate(b,a)
+  end
+
+  local function generateColorConverter(steps)
+    if #steps == 1 then
+      return reverseFill
+    elseif #steps == 2 then
+      return vornmath.colorConversions[steps[1]][steps[2]]
+    else
+      -- this one's big, so I have to compose the functions.
+      local functions = {}
+      local conversion_lines = {}
+      local loader_lines = {}
+      for i = 1,#steps - 1 do
+        local from = steps[i]
+        local to = steps[i+1]
+        local f = vornmath.colorConversions[from][to]
+        local name = from .. '_to_' .. to
+        local loader_line = "local " .. name .. " = converters[" .. i .. "]"
+        local conversion_opener, conversion_send
+        if i == #steps - 1 then
+          conversion_opener = 'return '
+        else
+          conversion_opener = 'to = '
+        end
+        if i == 1 then
+          conversion_send = 'from'
+        else
+          conversion_send = 'to'
+        end
+        local conversion_line = conversion_opener .. name .. '(' .. conversion_send .. ', to)'
+        table.insert(functions, f)
+        table.insert(loader_lines, loader_line)
+        table.insert(conversion_lines, conversion_line)
+      end
+      local code = 'local converters = select(1, ...)\n' .. table.concat(loader_lines,'\n') .. '\nreturn function(from, to)\n  ' .. table.concat(conversion_lines, '\n  ') .. '\nend'
+      return load(code)(functions)
+    end
+  end
+
+  local colorFroms = {}
+  local colorTos = {}
+
+  function vornmath.utils.prepareColorConverters()
+    local itinerary = {{vornmath.settings._colorspace, {vornmath.settings._colorspace}}}
+    local visited_to = {}
+    while #itinerary > 0 do
+      local current = table.remove(itinerary, 1)
+      if not visited_to[current[1]] then
+        visited_to[current[1]] = current[2]
+        for nearby,_ in pairs(vornmath.colorConversions[current[1]]) do
+          if not visited_to[nearby] then
+            local new_route = {}
+            for _,step in ipairs(current[2]) do
+              table.insert(new_route, step)
+            end
+            table.insert(new_route, nearby)
+            table.insert(itinerary, {nearby, new_route})
+          end
+        end
+      end
+    end
+    for target, steps in pairs(visited_to) do
+      colorTos[target] = generateColorConverter(steps)
+    end
+    -- now do the froms
+    itinerary = {{vornmath.settings._colorspace, {vornmath.settings._colorspace}}}
+    local visited_from = {}
+    while #itinerary > 0 do
+      local current = table.remove(itinerary, 1)
+      if not visited_from[current[1]] then
+        visited_from[current[1]] = current[2]
+        -- we're filling it out backwards: what can I get *to* this thing from?
+        for source,targets in pairs(vornmath.colorConversions) do
+          if targets[current[1]] then
+            if not visited_from[source] then
+              local new_route = {source}
+              for _,step in ipairs(current[2]) do
+                table.insert(new_route, step)
+              end
+              table.insert(itinerary, {source, new_route})
+            end
+          end
+        end
+      end
+    end
+    for target, steps in pairs(visited_from) do
+      colorFroms[target] = generateColorConverter(steps)
+    end
+  end
+
+  vornmath.bakeries.colorFrom = {
+    {
+      signature_check = vornmath.utils.clearingExactTypeCheck({'vec4', 'string', 'vec4'}),
+      create = function(types)
+        return function(from, space, to)
+          assert(colorFroms[space], "unknown color space '" .. space .."'.")
+          return colorFroms[space](from, to)
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    },
+    {
+      signature_check = vornmath.utils.nilFollowingExactTypeCheck({'vec4', 'string'}),
+      create = function(types)
+        local construct = vornmath.utils.bake('vec4', {})
+        local f = vornmath.utils.bake('colorFrom', {'vec4', 'string', 'vec4'})
+        return function(from, space)
+          return f(from, space, construct())
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    }
+  }
+
+  vornmath.bakeries.colorTo = {
+    {
+      signature_check = vornmath.utils.clearingExactTypeCheck({'vec4', 'string', 'vec4'}),
+      create = function(types)
+        return function(from, space, to)
+          assert(colorTos[space], "unknown color space '" .. space .. "'.")
+          return colorTos[space](from, to)
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    },
+    {
+      signature_check = vornmath.utils.nilFollowingExactTypeCheck({'vec4', 'string'}),
+      create = function(types)
+        local construct = vornmath.utils.bake('vec4', {})
+        local f = vornmath.utils.bake('colorTo', {'vec4', 'string', 'vec4'})
+        return function(from, space)
+          return f(from, space, construct())
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    }
+  }
+end
+
+vornmath.settings.setColorspace('srgb')
 
 return vornmath

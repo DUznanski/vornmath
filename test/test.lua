@@ -789,4 +789,21 @@ function testSlerp()
     lu.assertAlmostEquals(vm.slerp(vm.vec2(1,0), vm.polarVec2(1,math.pi/4), 2/3), vm.polarVec2(1, math.pi/6))
 end
 
+function testColorParse()
+    lu.assertEquals(vm.colorParse('mediumseagreen'),  vm.vec4(0x3c,0xb3,0x71,0xff)/255)
+    lu.assertEquals(vm.colorParse('#123'),  vm.vec4(0x1,0x2,0x3,0xf)/15)
+    lu.assertEquals(vm.colorParse('#4567'),  vm.vec4(0x4,0x5,0x6,0x7)/15)
+    lu.assertEquals(vm.colorParse('#89abcd'),  vm.vec4(0x89,0xab,0xcd,0xff)/255)
+    lu.assertEquals(vm.colorParse('#8675309a'), vm.vec4(0x86,0x75,0x30,0x9a)/255)
+end
+
+function testColorFrom()
+    lu.assertEquals(vm.colorFrom(vm.vec4(30,0.5,0.5,1),'hsv'),vm.vec4(0.5,0.375,0.25,1))
+end
+
+function testColorTo()
+    lu.assertEquals(vm.colorTo(vm.vec4(0.5,0.375,0.25,1),'hsv'),vm.vec4(30,0.5,0.5,1))
+end
+
+
 os.exit(lu.LuaUnit.run())

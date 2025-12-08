@@ -1574,6 +1574,53 @@ vm.logicalNot(a) --> componentwise logical NOT
 
 Returns `true` for each component that is `false`. and vice versa.
 
+### Color functions
+
+All colors in vornmath are assumed to be stored in vec4s, with alpha as the
+fourth coordinate.  The way these vectors are interpreted is based on the
+**default color space**, which is `srgb` when vornmath loads.
+
+vornmath is currently aware of the following color spaces:
+* `srgb`
+* `linearrgb`
+* `hsl`
+* `hsv`
+* `hwb`
+
+#### `colorParse`
+
+```lua
+vm.colorParse(s[, r]) --> parse a color
+```
+
+**Domain**: `string => vec4`
+
+Parses the color string and turns it into a color vector in the default color
+space.  Currently accepts hex codes of length 3, 4, 6, or 8 such as `#ffa500ff`
+or named CSS colors such as `aliceblue`.
+
+#### `colorFrom`
+
+```lua
+vm.colorFrom(c, space[, r]) --> convert a color from a given space
+```
+
+**Domain**: `vec4, string => vec4`
+
+Converts a color from the named color space to the default color space.  Alpha
+is maintained.
+
+#### `colorTo`
+
+```lua
+vm.colorFrom(c, space[, r]) --> convert a color into a given space
+```
+
+**Domain**: `vec4, string => vec4`
+
+Converts a color from the default color space to the named color space.  Alpha
+is maintained.
+
 ## Technical Details
 
 ### The Bakery
@@ -1717,6 +1764,7 @@ matrix if there are matrix types.  Will return `nil` instead if there are both
 matrix and vector types, or if there are matrices or vectors of different
 dimensions, or if the type required isn't suported.
 
+
 ### Expansion Bakeries
 
 Expansion bakeries are generic functions that create additional bakeries to
@@ -1816,6 +1864,55 @@ primarily for return-only versions of a function, which look almost exactly
 like the ones that include out variables; `add_complex_complex_complex`'s
 existence means that `add_complex_complex` doesn't work correctly, but
 `add_complex_complex_nil` would, and that's what it's here for.
+
+### Color details
+
+#### Color conversion functions
+
+Additional color spaces can be added; conversion functions should go in
+`vm.colorConversions` and look like this:
+
+```lua
+vm.colorConversions.foo.bar = function(from, to)
+  -- convert "from" in foo space
+  -- to "to" in bar space
+  return to
+end
+```
+
+A new color space should get one function that converts to it from a known
+space, and one function that converts from it to a known space.  Any space that
+is connected via conversion functions to the other spaces can be used freely.
+
+If you add your own color spaces, you should call `prepareColorConverters`.
+
+#### prepareColorConverters
+
+```lua
+vm.utils.prepareColorConverters()
+```
+
+Generates conversion functions to and from the default color space, for use by
+`fromColor` and `toColor`.  This is called automatically when vornmath is loaded
+and also whenever `settings.setColorSpace` is called, so you only need to call
+it yourself if you add your own color space conversions.
+
+#### `settings.setColorSpace`
+
+```lua
+vm.settings.setColorSpace(new_space) --> set the default color space
+```
+
+Changes the default color space to a different space.  This does not change
+the actual numbers in existing color vectors.
+
+#### `settings.getColorSpace`
+
+```lua
+vm.settings.getColorSpace() --> get the current default color space
+```
+
+Returns the current default color space.
 
 ### Other functions
 
