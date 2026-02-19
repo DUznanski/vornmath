@@ -5620,6 +5620,7 @@ do
     return to
   end
 
+
   cc.lch.lab = function(from, to)
     to[1] = from[1]
     to[4] = from[4]
@@ -5630,6 +5631,43 @@ do
     return to
   end
   local duplicate = vornmath.utils.bake('fill', {'vec4', 'vec4'})
+
+  do
+    local pow = vornmath.utils.bake('pow', {'vec4', 'number', 'vec4'})
+
+    local responses_from_xyz = vornmath.mat4(
+       0.8189330101, 0.0329845436, 0.0482003018, 0,
+       0.3618667424, 0.9293118715, 0.2643662691, 0,
+      -0.1288597137, 0.0361456387, 0.6338517070, 0,
+       0           , 0           , 0           , 1
+    )
+
+    local oklab_from_responses = vornmath.mat4(
+       0.2104542553,  1.9779984951,  0.0259040371, 0,
+       0.7936177850, -2.4285922050,  0.7827717662, 0,
+      -0.0040720468,  0.4505937099, -0.8086757660, 0,
+       0           ,  0           ,  0           , 1
+    )
+
+    local xyz_from_responses = vornmath.inverse(responses_from_xyz)
+    local responses_from_oklab = vornmath.inverse(oklab_from_responses)
+
+    cc.xyz.oklab = function(from, to)
+      to = mmul(responses_from_xyz, from, to)
+      to = pow(to, 1/3, to)
+      return mmul(oklab_from_responses, to, to)
+    end
+
+    cc.oklab.xyz = function(from, to)
+      to = mmul(responses_from_oklab, from, to)
+      to = pow(to, 3, to)
+      return mmul(xyz_from_responses, to, to)
+    end
+  end
+
+  cc.oklab.oklch = cc.lab.lch
+  cc.oklch.oklab = cc.lch.lab
+
 
   local function reverseFill(a,b)
     return duplicate(b,a)

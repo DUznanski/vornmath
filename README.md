@@ -1589,11 +1589,14 @@ vornmath is currently aware of the following color spaces:
 * `xyz`
 * `lab`
 * `lch`
+* `oklab`
+* `oklch`
 
-Most values have a range of 0-1; `xyz` uses the D65 white point of
-$(0.95489,1,1.088840)$; `lab` and `lch` have a more complicated gamut; see
-[the wikipedia page](https://en.wikipedia.org/wiki/CIELAB_color_space) for
-more details. Hue arguments are in degrees.
+Most values have a range of 0 to 1. Hue arguments are in degrees. `xyz` uses the
+D65 white point of $(0.95489,1,1.088840)$; `lab`, `lch`, `oklab`, and `oklch`
+have more complicated gamuts; see the wikipedia pages for 
+[CIELAB](https://en.wikipedia.org/wiki/CIELAB_color_space) and
+[Oklab](https://en.wikipedia.org/wiki/Oklab_color_space) for more details. 
 
 #### `colorParse`
 
