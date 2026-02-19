@@ -683,7 +683,7 @@ vm.cylindricalVec3(r, theta, z[, v]) --> v = <r * sin(theta), r * cos(theta), z>
 
 Produces a cartesian vec3 from cylindrical coordinates.
 
-#### `sphericalVec3
+#### `sphericalVec3`
 
 ```lua
 vm.sphericalVec3(r, theta, phi[, v])
@@ -1458,7 +1458,7 @@ Calculates the inverse of the matrix.
 
 The ones named for various comparison relations are componentwise for vectors:
 instead of returning a single boolean, they return a `bvec` where each component
-is the result of applying that relation to the matching components
+is the result of applying that relation to the matching components.
 
 #### `equal`
 
@@ -1583,9 +1583,17 @@ fourth coordinate.  The way these vectors are interpreted is based on the
 vornmath is currently aware of the following color spaces:
 * `srgb`
 * `linearrgb`
-* `hsl`
+* `hsl` 
 * `hsv`
 * `hwb`
+* `xyz`
+* `lab`
+* `lch`
+
+Most values have a range of 0-1; `xyz` uses the D65 white point of
+$(0.95489,1,1.088840)$; `lab` and `lch` have a more complicated gamut; see
+[the wikipedia page](https://en.wikipedia.org/wiki/CIELAB_color_space) for
+more details. Hue arguments are in degrees.
 
 #### `colorParse`
 
@@ -1663,7 +1671,7 @@ place (and indeed whether that is a usable function!) is quite complicated.  By
 placing simple dispatch functions for already-known signatures, the complicated
 work is avoided as much as possible.
 
-#### hasBakery
+#### `hasBakery`
 
 ```lua
 vm.utils.hasBakery(name, {typenames}) --> bakery
@@ -1676,7 +1684,7 @@ find a bakery it will return `false` (if a function by that name exists but not
 with that signature) or `nil` (if the function doesn't exist), so it also works
 as a boolean.
 
-#### bake
+#### `bake`
 
 ```lua
 vm.utils.bake(name, {typenames}) --> function
@@ -1715,7 +1723,7 @@ types when baking.
 
 ### Utility functions
 
-#### type
+#### `type`
 
 ```lua
 vm.utils.type(obj) --> typename
@@ -1723,7 +1731,7 @@ vm.utils.type(obj) --> typename
 
 Returns the name of the vornmath type (if it exists) or the lua type (if not).
 
-#### getmetatable
+#### `getmetatable`
 
 ```lua
 vm.utils.getmetatable(obj) --> metatable
@@ -1733,7 +1741,7 @@ Returns the vornmath metatable of the object: for built-in types where the
 metatable doesn't exist or is fixed, will return the fake metatable created for
 vornmath.
 
-#### findTypeByData
+#### `findTypeByData`
 
 ```lua
 vm.utils.findTypeByData(shape, dim, storage) --> typename
@@ -1742,7 +1750,7 @@ vm.utils.findTypeByData(shape, dim, storage) --> typename
 Returns the typename that matches the given information.  Will return `nil` if
 there isn't one.
 
-#### consensusStorage
+#### `consensusStorage`
 
 ```lua
 vm.utils.consensusStorage(types) --> typename
@@ -1751,7 +1759,7 @@ vm.utils.consensusStorage(types) --> typename
 Finds the consensus storage type, the numeric type that can represent every type
 of number found in the given types.
 
-#### componentWiseConsensusType
+#### `componentWiseConsensusType`
 
 ```lua
 vm.utils.componentWiseConsensusType(types) --> typename
@@ -1831,7 +1839,7 @@ instance, `fill(complex, number, number)` is a valid signature for `fill`,
 
 ### Simple signature checks
 
-#### justNilTypeCheck
+#### `justNilTypeCheck`
 
 ```lua
 vm.utils.justNilTypeCheck
@@ -1840,7 +1848,7 @@ vm.utils.justNilTypeCheck
 Mostly used for constructors, a bakery that gets this function as its
 `signature_check` will accept a completely blank signature.
 
-#### clearingExactTypeCheck
+#### `clearingExactTypeCheck`
 
 ```lua
 vm.utils.clearingExactTypeCheck(types) --> signature_check function
@@ -1851,7 +1859,7 @@ any further types from the table.  This clearing has the effect of mitigating
 the effects of accidentally calling a function with too many arguments, which
 should work just fine and get ignored just like a regular Lua function.
 
-#### nilFollowingExactTypeCheck
+#### `nilFollowingExactTypeCheck`
 
 ```lua
 vm.utils.nilFollowingExactTypeCheck(types) --> signature_check function
@@ -1884,9 +1892,10 @@ A new color space should get one function that converts to it from a known
 space, and one function that converts from it to a known space.  Any space that
 is connected via conversion functions to the other spaces can be used freely.
 
-If you add your own color spaces, you should call `prepareColorConverters`.
+If you add your own color spaces, you should call `prepareColorConverters` when
+you're done.
 
-#### prepareColorConverters
+#### `prepareColorConverters`
 
 ```lua
 vm.utils.prepareColorConverters()
@@ -1904,7 +1913,8 @@ vm.settings.setColorSpace(new_space) --> set the default color space
 ```
 
 Changes the default color space to a different space.  This does not change
-the actual numbers in existing color vectors.
+the actual numbers in existing vectors used for colors: vornmath does not keep
+track of what vectors are supposed to be about color.
 
 #### `settings.getColorSpace`
 
@@ -1912,7 +1922,7 @@ the actual numbers in existing color vectors.
 vm.settings.getColorSpace() --> get the current default color space
 ```
 
-Returns the current default color space.
+Returns the name of the current default color space.
 
 ### Other functions
 

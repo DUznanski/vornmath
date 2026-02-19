@@ -799,11 +799,16 @@ end
 
 function testColorFrom()
     lu.assertEquals(vm.colorFrom(vm.vec4(30,0.5,0.5,1),'hsv'),vm.vec4(0.5,0.375,0.25,1))
+    local cb = vm.colorParse('cadetblue')
+    for space,_ in pairs(vm.colorConversions) do
+        local out = vm.colorTo(cb, space)
+        local back = vm.colorFrom(out, space)
+        lu.assertAlmostEquals(cb, back, 1e-6)
+    end
 end
 
 function testColorTo()
     lu.assertEquals(vm.colorTo(vm.vec4(0.5,0.375,0.25,1),'hsv'),vm.vec4(30,0.5,0.5,1))
 end
-
 
 os.exit(lu.LuaUnit.run())

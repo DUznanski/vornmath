@@ -5401,6 +5401,70 @@ vornmath.bakeries.colorParse = {
 -- more specific things can be helpful though!
 
 do
+  local fill = vornmath.utils.bake('fill', {'vec4', 'number', 'number', 'number', 'number'})
+  local clone = vornmath.utils.bake('fill', {'vec4', 'vec4'})
+  local mmul = vornmath.utils.bake('mul', {'mat4x4', 'vec4', 'vec4'})
+
+  local cc = {}
+
+  vornmath.colorConversions = cc
+
+  local cc_meta = {
+    __index = function(self, i)
+      self[i] = {}
+      return self[i]
+    end
+  }
+
+  setmetatable(cc, cc_meta)
+
+  -- hsl: hue/saturation/lightness, derived from hsv
+
+  cc.hsv.hsl = function(from, to)
+    local lightness = from[3] * (1 - from[2] / 2)
+    local saturation
+    if lightness <= 0 or lightness >= 1 then
+      saturation = 0
+    else
+      saturation = (from[3] - lightness) / math.min(lightness, 1 - lightness)
+    end
+    return fill(to, from[1], saturation, lightness, from[4])
+  end
+
+  cc.hsl.hsv = function(from, to)
+    local value = from[3] + from[2] * math.min(from[3], 1 - from[3])
+    local saturation
+    if value <= 0 then
+      saturation = 0
+    else
+      saturation = 2 * (1 - from[3] / value)
+    end
+    return fill(to, from[1], saturation, value, from[4])
+  end
+
+  -- hwb: hue/whiteness/blackness, a 
+
+  cc.hsv.hwb = function(from, to)
+    to[1] = from[1]
+    to[2] = (1 - from[2]) * from[3]
+    to[3] = 1 - from[3]
+    to[4] = from[4]
+    return to
+  end
+
+  cc.hwb.hsv = function(from, to)
+    local value = 1 - from[3]
+    to[1] = from[1]
+    if value == 0 then
+      to[2] = 0
+    else
+      to[2] = 1 - from[2] / value
+    end
+    to[3] = value
+    to[4] = from[4]
+    return to
+  end
+
   local hsv_indices = {
     {1,2,3},
     {2,1,3},
@@ -5409,119 +5473,163 @@ do
     {2,3,1},
     {1,3,2}
   }
-  local fill = vornmath.utils.bake('fill', {'vec4', 'number', 'number', 'number', 'number'})
-  local duplicate = vornmath.utils.bake('fill', {'vec4', 'vec4'})
 
-  vornmath.colorConversions = {
-    hsl = {
-      hsv = function(from, to)
-        local value = from[3] + from[2] * math.min(from[3], 1 - from[3])
-        local saturation
-        if value <= 0 then
-          saturation = 0
-        else
-          saturation = 2 * (1 - from[3] / value)
-        end
-        return fill(to, from[1], saturation, value, from[4])
+  cc.hsv.srgb = function(from, to)
+    local small_hue = from[1] / 60
+    local segment = math.floor(small_hue) + 1
+    local is = hsv_indices[segment]
+    local hue_strength = 1 - math.abs(small_hue % 2 - 1)
+    local chroma = from[2] * from[3]
+    local secondary = chroma * hue_strength
+    local bottom = from[3] - chroma
+    local results = {chroma + bottom, secondary + bottom, bottom}
+    return fill(to, results[is[1]], results[is[2]], results[is[3]], from[4])
+  end
+
+  cc.srgb.hsv = function(from, to)
+    local value = math.max(from[1], from[2], from[3])
+    local bottom = math.min(from[1], from[2], from[3])
+    local chroma = value - bottom
+    local small_hue
+    if chroma == 0 then
+      small_hue = 0
+    else
+      if from[1] == value then
+        small_hue = (from[2] - from[3]) / chroma
+      elseif from[2] == value then
+        small_hue = (from[3] - from[1]) / chroma + 2
+      else -- from[3] == value
+        small_hue = (from[1] - from[2]) / chroma + 4
       end
-    },
-    hsv = {
-      hsl = function(from, to)
-        local lightness = from[3] * (1 - from[2] / 2)
-        local saturation
-        if lightness <= 0 or lightness >= 1 then
-          saturation = 0
-        else
-          saturation = 2 * (1 - lightness / from[3])
-        end
-        return fill(to, from[1], saturation, lightness, from[4])
-      end,
-      hwb = function(from, to)
-        to[1] = from[1]
-        to[2] = (1 - from[2]) * from[3]
-        to[3] = 1 - from[3]
-        to[4] = from[4]
-        return to
-      end,
-      srgb = function(from, to)
-        local small_hue = from[1] / 60
-        local segment = math.floor(small_hue) + 1
-        local is = hsv_indices[segment]
-        local hue_strength = 1 - math.abs(small_hue % 2 - 1)
-        local chroma = from[2] * from[3]
-        local secondary = chroma * hue_strength
-        local bottom = from[3] - chroma
-        local results = {chroma + bottom, secondary + bottom, bottom}
-        return fill(to, results[is[1]], results[is[2]], results[is[3]], from[4])
+    end
+    local hue = (small_hue % 6) * 60
+    local saturation = chroma / value
+    return fill(to, hue, saturation, value, from[4])
+  end
+
+  cc.srgb.linearrgb = function(from, to)
+    for i = 1, 3 do
+      local x = from[i]
+      if x > 0.041 then
+        to[i] = ((x+0.055)/1.055)^2.4
+      elseif x < 0.04 then
+        to[i] = x / 12.92
+      else -- between 0.04 and 0.041, the area where the two meet
+        to[i] = math.max(x / 12.92, ((x + 0.055)/1.055)^2.4)
       end
-    },
-    hwb = {
-      hsv = function(from, to)
-        local value = 1 - to[3]
-        to[1] = from[1]
-        if value == 0 then
-          to[2] = 0
-        else
-          to[2] = 1 - from[2] / value
-        end
-        to[3] = value
-        to[4] = from[4]
-        return to
+    end
+    to[4] = from[4]
+    return to
+  end
+
+  cc.linearrgb.srgb = function(from, to)
+    for i = 1,3 do
+      local x = from[i]
+      if x > 0.0032 then
+        to[i] = 1.055 * x^(1/2.4) - 0.055
+      elseif x < 0.003 then
+        to[i] = x * 12.92
+      else
+        to[i] = math.min(x * 12.92, 1.055 * x^(1/2.4) - 0.055)
       end
-    },
-    linearrgb = {
-      srgb = function(from, to)
-        for i = 1,3 do
-          local x = from[i]
-          if x > 0.0032 then
-            to[i] = 1.055 * x^(1/2.4) - 0.055
-          elseif x < 0.003 then
-            to[i] = x * 12.92
-          else
-            to[i] = math.min(x * 12.92, 1.055 * x^(1/2.4) - 0.055)
-          end
-        end
-        to[4] = from[4]
-        return to
-      end
-    },
-    srgb = {
-      hsv = function(from, to)
-        local value = math.max(from[1], from[2], from[3])
-        local bottom = math.min(from[1], from[2], from[3])
-        local chroma = value - bottom
-        local small_hue
-        if chroma == 0 then
-          small_hue = 0
-        else
-          if from[1] == value then
-            small_hue = (from[2] - from[3]) / chroma
-          elseif from[2] == value then
-            small_hue = (from[3] - from[1]) / chroma + 2
-          else -- from[3] == value
-            small_hue = (from[1] - from[2]) / chroma + 4
-          end
-        end
-        local hue = (small_hue % 6) * 60
-        local saturation = chroma / value
-        return fill(to, hue, saturation, value, from[4])
-      end,
-      linearrgb = function(from, to)
-        for i = 1, 3 do
-          local x = from[i]
-          if x > 0.041 then
-            to[i] = ((x+0.055)/1.055)^2.4
-          elseif x < 0.04 then
-            to[i] = x / 12.92
-          else -- between 0.04 and 0.041, the area where the two meet
-            to[i] = math.max(x / 12.92, ((x + 0.055)/1.055)^2.4)
-          end
-        end
-        to[4] = from[4]
-        return to
-      end
-    },
-  }
+    end
+    to[4] = from[4]
+    return to
+  end
+
+  local xyz_from_rgb = vornmath.mat4(
+    0.4124, 0.2126, 0.0193, 0,
+    0.3576, 0.7152, 0.1192, 0,
+    0.1805, 0.0722, 0.9505, 0,
+    0     , 0     , 0     , 1
+  )
+
+  local rgb_from_xyz = vornmath.inverse(xyz_from_rgb)
+
+  cc.linearrgb.xyz = function(from, to)
+    return mmul(xyz_from_rgb, from, to)
+  end
+
+  cc.xyz.linearrgb = function(from, to)
+    return mmul(rgb_from_xyz, from, to)
+  end
+
+  local whitepoint = vornmath.vec4(0.95489,1,1.088840,1)
+
+
+  do
+    local lab_from_modded_xyz = vornmath.mat4(
+      116, -500, -200, 0,
+        0,  500,    0, 0,
+        0,    0,  200, 0,
+        0,    0,    0, 1
+    )
+
+    local modded_xyz_from_lab = vornmath.inverse(lab_from_modded_xyz)
+
+    local div = vornmath.utils.bake('div', {'vec4', 'vec4', 'vec4'})
+    local pow = vornmath.utils.bake('pow', {'vec4', 'number', 'vec4'})
+    local add = vornmath.utils.bake('add', {'vec4', 'number', 'vec4'})
+    local mul = vornmath.utils.bake('mul', {'vec4', 'number', 'vec4'})
+    local vmul = vornmath.utils.bake('mul', {'vec4', 'vec4', 'vec4'})
+    local pick = vornmath.utils.bake('mix', {'vec4', 'vec4', 'bvec4', 'vec4'})
+    local lt = vornmath.utils.bake('lessThan', {'vec4', 'vec4', 'bvec4'})
+    local cubic = vornmath.vec4()
+    local linear = vornmath.vec4()
+    local flags = vornmath.bvec4()
+
+    local lab_threshold = vornmath.vec4(216/24389)
+    local xyz_threshold = vornmath.vec4(6/29)
+
+    cc.xyz.lab = function(from, to)
+      local alpha = from[4]
+      to = div(from, whitepoint, to)
+      cubic = pow(to, 1/3, cubic)
+      linear = add(mul(to, 12/841, linear), 4/29, linear)
+      flags = lt(to, lab_threshold, flags)
+      to = pick(cubic, linear, flags, to)
+      to = mmul(lab_from_modded_xyz, to, to)
+      to[4] = alpha
+      to[1] = to[1] - 16
+      return to
+    end
+
+    cc.lab.xyz = function(from, to)
+      local alpha = from[4]
+      to = clone(to, from)
+      to[1] = to[1] + 16
+      to = mmul(modded_xyz_from_lab, to, to)
+      linear = add(mul(from, 841/12, linear), -4/29, linear)
+      cubic = pow(to, 3, cubic)
+      flags = lt(to, xyz_threshold, flags)
+      to = pick(cubic, linear, flags, to)
+      to = vmul(to, whitepoint, to)
+      to[4] = alpha
+      return to
+    end
+  end
+
+  local atan = math.atan2 or math.atan
+  local hypot = vornmath.utils.bake('hypot', {'number', 'number'})
+  cc.lab.lch = function(from, to)
+    to[1] = from[1]
+    to[4] = from[4]
+    local chroma = hypot(from[2], from[3])
+    local hue = math.deg(atan(from[3], from[2])) % 360
+    to[2], to[3] = chroma, hue
+    return to
+  end
+
+  cc.lch.lab = function(from, to)
+    to[1] = from[1]
+    to[4] = from[4]
+    local chroma = from[2]
+    local hue_radians = math.rad(from[3])
+    to[2] = chroma * math.cos(hue_radians)
+    to[3] = chroma * math.sin(hue_radians)
+    return to
+  end
+  local duplicate = vornmath.utils.bake('fill', {'vec4', 'vec4'})
 
   local function reverseFill(a,b)
     return duplicate(b,a)
