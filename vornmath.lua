@@ -5396,7 +5396,7 @@ vornmath.bakeries.colorParse = {
 }
 
 -- conversion formulas
--- colorConversions[from][to]
+-- color_conversions[from][to]
 -- you only need to and from srgb for each thing; eventually it will try that one.
 -- more specific things can be helpful though!
 
@@ -5407,7 +5407,7 @@ do
 
   local cc = {}
 
-  vornmath.colorConversions = cc
+  vornmath.color_conversions = cc
 
   local cc_meta = {
     __index = function(self, i)
@@ -5633,7 +5633,7 @@ do
   local duplicate = vornmath.utils.bake('fill', {'vec4', 'vec4'})
 
   do
-    local pow = vornmath.utils.bake('pow', {'vec4', 'number', 'vec4'})
+    local pow = vornmath.utils.bake('pow', {'vec4', 'vec4', 'vec4'})
 
     local responses_from_xyz = vornmath.mat4(
        0.8189330101, 0.0329845436, 0.0482003018, 0,
@@ -5649,18 +5649,21 @@ do
        0           ,  0           ,  0           , 1
     )
 
+    local forward_powers = vornmath.vec4(1/3, 1/3, 1/3, 1)
+    local backward_powers = vornmath.vec4(3, 3, 3, 1)
+
     local xyz_from_responses = vornmath.inverse(responses_from_xyz)
     local responses_from_oklab = vornmath.inverse(oklab_from_responses)
 
     cc.xyz.oklab = function(from, to)
       to = mmul(responses_from_xyz, from, to)
-      to = pow(to, 1/3, to)
+      to = pow(to, forward_powers, to)
       return mmul(oklab_from_responses, to, to)
     end
 
     cc.oklab.xyz = function(from, to)
       to = mmul(responses_from_oklab, from, to)
-      to = pow(to, 3, to)
+      to = pow(to, backward_powers, to)
       return mmul(xyz_from_responses, to, to)
     end
   end
@@ -5677,7 +5680,7 @@ do
     if #steps == 1 then
       return reverseFill
     elseif #steps == 2 then
-      return vornmath.colorConversions[steps[1]][steps[2]]
+      return vornmath.color_conversions[steps[1]][steps[2]]
     else
       -- this one's big, so I have to compose the functions.
       local functions = {}
@@ -5686,7 +5689,7 @@ do
       for i = 1,#steps - 1 do
         local from = steps[i]
         local to = steps[i+1]
-        local f = vornmath.colorConversions[from][to]
+        local f = vornmath.color_conversions[from][to]
         local name = from .. '_to_' .. to
         local loader_line = "local " .. name .. " = converters[" .. i .. "]"
         local conversion_opener, conversion_send
@@ -5720,7 +5723,7 @@ do
       local current = table.remove(itinerary, 1)
       if not visited_to[current[1]] then
         visited_to[current[1]] = current[2]
-        for nearby,_ in pairs(vornmath.colorConversions[current[1]]) do
+        for nearby,_ in pairs(vornmath.color_conversions[current[1]]) do
           if not visited_to[nearby] then
             local new_route = {}
             for _,step in ipairs(current[2]) do
@@ -5743,7 +5746,7 @@ do
       if not visited_from[current[1]] then
         visited_from[current[1]] = current[2]
         -- we're filling it out backwards: what can I get *to* this thing from?
-        for source,targets in pairs(vornmath.colorConversions) do
+        for source,targets in pairs(vornmath.color_conversions) do
           if targets[current[1]] then
             if not visited_from[source] then
               local new_route = {source}
@@ -5808,6 +5811,149 @@ do
       return_type = function(types) return 'vec4' end
     }
   }
+
+  local hue_indices = {
+    hsl = 1,
+    hsv = 1,
+    hwb = 1,
+    lch = 3,
+    oklch = 3
+  }
+
+  local missing_channels = {
+    hsl = function(c,v)
+      if c[3] >= 1 or c[3] <= 0 then
+        v[1] = true
+        v[2] = true
+      end
+      if c[2] == 0 then
+        v[1] = true
+      end
+      return v
+    end,
+    hsv = function(c,v)
+      if c[3] <= 0 then
+        v[1] = true
+        v[2] = true
+      end
+      if c[2] == 0 then
+        v[1] = true
+      end
+      return v
+    end,
+    hwb = function(c,v)
+      if c[2] + c[3] >= 1 then
+        v[1] = true
+      end
+      return v
+   end,
+    lch = function(c,v)
+      if c[1] <= 0 then
+        v[2] = true
+        v[3] = true
+      end
+      if c[2] == 0 then
+        v[3] = true
+      end
+      return v
+     end,
+    oklch = function(c,v)
+      if c[1] <= 0 then
+        v[2] = true
+        v[3] = true
+      end
+      if c[2] == 0 then
+        v[3] = true
+      end
+      return v
+    end
+  }
+
+  vornmath.bakeries.colorMix = {
+    {
+      signature_check = vornmath.utils.clearingExactTypeCheck({'vec4', 'vec4', 'number', 'string', 'vec4'}),
+      create = function(types)
+        local colorTo = vornmath.utils.bake('colorTo', {'vec4', 'string', 'vec4'})
+        local colorFrom = vornmath.utils.bake('colorFrom', {'vec4', 'string', 'vec4'})
+        local clear_flags = vornmath.utils.bake('fill', {'bvec4'})
+        local mix = vornmath.utils.bake('mix', {'vec4', 'vec4', 'number', 'vec4'})
+        local a_spaced = vornmath.vec4()
+        local b_spaced = vornmath.vec4()
+        local a_missing = vornmath.bvec4()
+        local b_missing = vornmath.bvec4()
+        return function(a, b, t, space, result)
+          -- convert colors into the interpolating space
+          a_spaced = colorTo(a, space, a_spaced)
+          b_spaced = colorTo(b, space, b_spaced)
+          -- look for "missing" components, where the data is ambiguous
+          a_missing = clear_flags(a_missing)
+          b_missing = clear_flags(b_missing)
+          local check_missing = missing_channels[space]
+          if check_missing then
+            a_missing = check_missing(a_spaced, a_missing)
+            b_missing = check_missing(b_spaced, b_missing)
+          end
+          for i = 1,4 do
+            -- fill in missing components with set data; use the other input if available
+            if a_missing[i] and b_missing[i] then
+              a_spaced[i] = 0
+              b_spaced[i] = 0
+            elseif a_missing[i] then
+              a_spaced[i] = b_spaced[i]
+            elseif b_missing[i] then
+              b_spaced[i] = a_spaced[i]
+            end
+            -- alpha premultiply
+            if i ~= hue_indices[space] then
+              if i ~= 4 then
+                a_spaced[i] = a_spaced[i] * a_spaced[4]
+                b_spaced[i] = b_spaced[i] * b_spaced[4]
+              end
+            -- rewrap hue angle for calculation
+            else
+              if math.abs(a_spaced[i] - b_spaced[i]) > 180 then
+                if a_spaced < b_spaced then
+                  a_spaced = a_spaced + 360
+                else
+                  b_spaced = b_spaced + 360
+                end
+              end
+            end
+          end
+          result = mix(a_spaced, b_spaced, t, result)
+          -- check if we're transparent
+          if result[4] == 0 then
+            result = fill(result, 0,0,0,0)
+            return colorFrom(result, 'srgb', result)
+          else
+            for i = 1,3 do
+              -- unmultiply alpha
+              if i ~= hue_indices[space] then
+                result[i] = result[i] / result[4]
+              else
+                -- rewrap hue angle for result
+                result[i] = result[i] % 360
+              end
+            end
+            return colorFrom(result, space, result)
+          end
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    },
+    {
+      signature_check = vornmath.utils.nilFollowingExactTypeCheck({'vec4', 'vec4', 'number', 'string'}),
+      create = function(types)
+        local construct = vornmath.utils.bake('vec4', {})
+        local f = vornmath.utils.bake('colorMix', {'vec4', 'vec4', 'number', 'string', 'vec4'})
+        return function(a, b, t, space)
+          return f(a, b, t, space, construct())
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    }
+  }
+
 end
 
 vornmath.settings.setColorspace('srgb')
