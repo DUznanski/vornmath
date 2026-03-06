@@ -1632,6 +1632,32 @@ vm.colorFrom(c, space[, r]) --> convert a color into a given space
 Converts a color from the default color space to the named color space.  Alpha
 is maintained.
 
+#### `colorMix`
+
+```lua
+vm.colorMix(a, b, t, space[, r]) --> mix two colors using a given space
+```
+
+**Domain**: `vec4, vec4, number, string => vec4`
+
+Mixes two colors `a` and `b` linearly or cylindrically using the given space.
+The algorithm is largely the same as CSS's, though more restricted: CSS allows
+more than two colors to be mixed simultaneously, unusual weightings, and 
+explicitly missing components, and stores colors in more than just the default
+color space.
+
+#### `colorFallback`
+```lua
+vm.colorFallback(color, result) --> the closest usable rgb color
+```
+
+**Domain**: `vec4 => vec4`
+
+Finds the color that is in the standard srgb gamut to the given color.  It uses
+the W3's binary search
+[method](https://www.w3.org/TR/css-color-4/#GMA-Binary-local-MINDE) to find the
+right color.
+
 ## Technical Details
 
 ### The Bakery

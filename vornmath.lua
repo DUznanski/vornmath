@@ -5856,7 +5856,7 @@ do
         v[3] = true
       end
       return v
-     end,
+    end,
     oklch = function(c,v)
       if c[1] <= 0 then
         v[2] = true
@@ -5912,10 +5912,10 @@ do
             -- rewrap hue angle for calculation
             else
               if math.abs(a_spaced[i] - b_spaced[i]) > 180 then
-                if a_spaced < b_spaced then
-                  a_spaced = a_spaced + 360
+                if a_spaced[i] < b_spaced[i] then
+                  a_spaced[i] = a_spaced[i] + 360
                 else
-                  b_spaced = b_spaced + 360
+                  b_spaced[i] = b_spaced[i] + 360
                 end
               end
             end
@@ -5954,6 +5954,113 @@ do
     }
   }
 
+  vornmath.bakeries.colorFallback = {
+    {
+      signature_check = vornmath.utils.clearingExactTypeCheck({'vec4', 'vec4'}),
+      create = function(types)
+        local colorTo = vornmath.utils.bake('colorTo', {'vec4', 'string', 'vec4'})
+        local colorFrom = vornmath.utils.bake('colorFrom', {'vec4', 'string', 'vec4'})
+        local toLinearRGB = generateColorConverter({'oklch', 'oklab', 'xyz', 'linearrgb'})
+        local fromLinearRGB = generateColorConverter({'linearrgb', 'xyz', 'oklab', 'oklch'})
+        local toOkLab = cc.oklch.oklab
+        local clamp = vornmath.utils.bake('clamp', {'vec4', 'vec4', 'vec4', 'vec4'})
+        local minComponent = vornmath.utils.bake('minComponent', {'vec4'})
+        local maxComponent = vornmath.utils.bake('maxComponent', {'vec4'})
+        local distance = vornmath.utils.bake('distance', {'vec4', 'vec4'})
+        local gamut_target = vornmath.vec4()
+        local a_oklab = vornmath.vec4()
+        local b_oklab = vornmath.vec4()
+        local clipped = vornmath.vec4()
+        local clamp_bottom = vornmath.vec4(0,0,0,0)
+        local clamp_top = vornmath.vec4(1,1,1,1)
+        local function in_gamut(c)
+          gamut_target = toLinearRGB(c, gamut_target)
+          local bottom = minComponent(gamut_target)
+          local top = maxComponent(gamut_target)
+          return bottom >= 0 and top <= 1
+        end
+        local function clip(c, result)
+          result = toLinearRGB(c, result)
+          result = clamp(result, clamp_bottom, clamp_top, result)
+          return fromLinearRGB(result, result)
+        end
+        local function delta(a, b)
+          a_oklab = toOkLab(a, a_oklab)
+          b_oklab = toOkLab(b, b_oklab)
+          return distance(a_oklab, b_oklab)
+        end
+        local current = vornmath.vec4()
+        local transparent = vornmath.vec4(0,0,0,0)
+        local white = vornmath.vec4(1,0,0,1)
+        local black = vornmath.vec4(0,0,0,1)
+        local close_enough = 0.02
+        local resolution = 0.0001
+        return function(c,result)
+          current = colorTo(c, 'oklch', current)
+          -- if origin has alpha greater than 1, just set it to 1 as fully opaque
+          if current[4] > 1 then
+            current[4] = 1
+          -- if origin has an alpha of 0 or less, return fully black transparent
+          elseif current[4] <= 0 then
+            return colorFrom(transparent, 'oklch', result)
+          end
+          -- if origin is fully white or brighter, return white.
+          if current[1] >= 1 then
+            result = colorFrom(white, 'oklch', result)
+            result[4] = current[4]
+            return result
+          end
+          -- if it's fully black or blacker, return black.
+          if current[1] <= 0 then
+            result = colorFrom(black, 'oklch', result)
+            result[4] = current[4]
+            return result
+          end
+          -- if it's in gamut completely, we're done already.
+          if in_gamut(current) then
+            return colorFrom(current, 'oklch', result)
+          end
+          -- try clipping, is that close enough?
+          clipped = clip(current, clipped)
+          if delta(clipped, current) < close_enough then
+            return colorFrom(clipped, 'oklch', result)
+          end
+          -- okay, all the short circuits done, let's try reducing the chroma.
+          local low_chroma = 0
+          local high_chroma = current[2]
+          local low_in_gamut = true
+          while high_chroma - low_chroma > resolution do
+            local chroma = (low_chroma + high_chroma) / 2
+            current[2] = chroma
+            -- move low up till it's as close to the gamut edge as I can get
+            if in_gamut(current) and low_in_gamut then
+              low_chroma = chroma
+            else
+              clipped = clip(current, clipped)
+              local gamut_distance = delta(clipped, current)
+              -- are we close to the gamut edge?
+              if gamut_distance < close_enough then
+                -- if we're really close to the with-clip edge, then we're done
+                if close_enough - gamut_distance < resolution then
+                  return colorFrom(clipped, 'oklch', result)
+                else
+                  -- otherwise, step the low chroma out of the gamut
+                  low_in_gamut = false
+                  low_chroma = chroma
+                end
+              else
+                -- step the high chroma down
+                high_chroma = chroma
+              end
+            end
+          end
+          return colorFrom(clipped, 'oklch', result)
+        end
+      end,
+      return_type = function(types) return 'vec4' end
+    },
+    vornmath.utils.componentWiseReturnOnlys('colorFallback', 1)
+  }
 end
 
 vornmath.settings.setColorspace('srgb')
