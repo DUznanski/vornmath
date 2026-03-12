@@ -1906,20 +1906,42 @@ existence means that `add_complex_complex` doesn't work correctly, but
 
 #### Color conversion functions
 
-Additional color spaces can be added; conversion functions should go in
-`vm.colorConversions` and look like this:
+Additional color spaces can be added; there are several things that vornmath
+needs to know in order to use a new color space:
+
+1. `vm.color_conversions` should get conversion functions for the new space.
+they look like this:
 
 ```lua
-vm.colorConversions.foo.bar = function(from, to)
+vm.color_conversions.foo.bar = function(from, to)
   -- convert "from" in foo space
   -- to "to" in bar space
   return to
 end
 ```
 
+**Domain**: `vec4 => vec4`
+
 A new color space should get one function that converts to it from a known
 space, and one function that converts from it to a known space.  Any space that
 is connected via conversion functions to the other spaces can be used freely.
+
+2. if `foo` is a space that includes a hue value, `vm.color_hue_indices.foo`
+   should be the index number of that value in the color vector.
+
+3. if `foo` is a space where multiple different vectors encode the same color,
+`vm.color_missing_channels.foo` should also exist:
+
+```lua
+vm.color_missing_channels.foo = function(color, missing)
+  -- if this vector, interpreted as a color in the foo space, could be written
+  -- differently, put true in missing for each channel that could be changed
+  -- without changing the actual color.
+  return missing
+end
+```
+
+**Domain**: `vec4 => bvec4`
 
 If you add your own color spaces, you should call `prepareColorConverters` when
 you're done.

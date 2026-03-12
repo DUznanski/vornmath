@@ -5820,6 +5820,8 @@ do
     oklch = 3
   }
 
+  vornmath.color_hue_indices = hue_indices
+
   local missing_channels = {
     hsl = function(c,v)
       if c[3] >= 1 or c[3] <= 0 then
@@ -5868,6 +5870,8 @@ do
       return v
     end
   }
+
+  vornmath.color_channel_fixes = missing_channels
 
   vornmath.bakeries.colorMix = {
     {
