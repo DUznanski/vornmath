@@ -1,7 +1,7 @@
 --[[
 MIT License
 
-Copyright (c) 2022-2025 Dan Uznanski
+Copyright (c) 2022-2026 Dan Uznanski
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -163,6 +163,87 @@ function vornmath.utils.returnType(function_name, types)
   ---@diagnostic disable-next-line: need-check-nil, undefined-field
   return bakery.return_type(types)
 end
+
+local VornFunction_index = {}
+local VornFunction_meta = {__index = VornFunction_index}
+function vornmath.VornFunction(bakeries)
+   local self = {
+    bakeries = bakeries,
+    walks = {},
+  }
+  return setmetatable(self, VornFunction_meta)
+end
+
+function VornFunction_index:hasBakery(types)
+  for _, bakery in ipairs(self.bakeries) do
+    if bakery.signature_check(types) then return bakery end
+  end
+  return false
+end
+
+function VornFunction_index:walk(...)
+  local step, depth = self.walks, 1
+  while step do -- I can't use select('#', ...) here because some signatures have trailing nils
+    local target_type = vornmath.utils.type(select(depth, ...))
+    step, depth = step[target_type], depth + 1
+    if type(step) == 'function' then
+      return step
+    end
+  end
+  return self:bakeByCall(...)
+end
+
+function VornFunction_index:typeWalk(types)
+  local step = self.walks
+  for _,typename in ipairs(types) do
+    step = step[typename]
+    if not step then return false end
+  end
+  if type(step) == 'table' then error('incomplete type walk for this vornmath function: `' .. table.concat(types, ', ') .. '`. This is probably a bakery error.') end
+  return step
+end
+
+function VornFunction_meta:__call(...)
+    return self:walk(...)(...)
+end
+function VornFunction_index:buildWalk(types, f)
+  local target = self.walks
+  for i,t in ipairs(types) do
+    if i == #types then -- last one, put the actual function there
+      target[t] = f
+    else
+      if not target[t] then
+        target[t] = {}
+      end
+      target = target[t]
+    end
+  end
+end
+
+function VornFunction_index:bake(types)
+  local bakery = self:hasBakery(types)
+  if not bakery then error('this vornmath function does not accept types `' .. table.concat(types, ', ') .. '`.') end
+  local existing = self:typeWalk(types) 
+  if existing then return existing end
+  local result = bakery.create(types)
+  self:buildWalk(types, result)
+  return result
+end
+
+function VornFunction_index:bakeByCall(...)
+  local types = {}
+  for i = 1, select('#', ...) do
+    types[i] = vornmath.utils.type(select(i, ...))
+  end
+  return self:bake(types)
+end
+
+function VornFunction_index:returnType(types)
+  local bakery = self:hasBakery(types)
+  if not bakery then error('this vornmath function does not accept types `' .. table.concat(types, ', ') .. '`.') end
+  return bakery.return_type(types)
+end
+
 
 function vornmath.utils.componentWiseReturnOnlys(function_name, arity, force_output_storage)
   return {
@@ -4610,7 +4691,7 @@ vornmath.bakeries.matrixCompMult = {
   vornmath.utils.componentWiseReturnOnlys('matrixCompMult', 2)
 }
 
-vornmath.bakeries.outerProduct = {
+vornmath.outerProduct = vornmath.VornFunction({
   { -- outerProduct(vector, vector, matrix)}
     signature_check = function(types)
       if #types < 3 then return false end
@@ -4665,7 +4746,7 @@ vornmath.bakeries.outerProduct = {
       end
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
       local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim, left.vm_dim}, consensus_storage)
-      if vornmath.utils.hasBakery('outerProduct', {types[1], types[2], result_type}) then
+      if vornmath.outerProduct:hasBakery({types[1], types[2], result_type}) then
         types[3] = 'nil'
         types[4] = nil
         return true
@@ -4677,7 +4758,7 @@ vornmath.bakeries.outerProduct = {
       local consensus_storage = vornmath.utils.consensusStorage({left.vm_storage, right.vm_storage})
       local result_type = vornmath.utils.findTypeByData('matrix', {right.vm_dim, left.vm_dim}, consensus_storage)
       local make = vornmath.utils.bake(result_type, {})
-      local action = vornmath.utils.bake('outerProduct', {types[1], types[2], result_type})
+      local action = vornmath.outerProduct:bake({types[1], types[2], result_type})
       return function(a, b)
         local result = make()
         return action(a, b, result)
@@ -4690,8 +4771,7 @@ vornmath.bakeries.outerProduct = {
       return vornmath.utils.findTypeByData('matrix', {right.vm_dim[1], left.vm_dim[2]}, consensus_storage)
     end
   },
-
-}
+})
 
 vornmath.bakeries.transpose = {
   { -- transpose(mataxb, matbxa)
